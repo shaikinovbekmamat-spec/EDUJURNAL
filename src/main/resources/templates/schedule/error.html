@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Урок недоступен — EduJournal</title><link rel="stylesheet" th:href="@{/schedule.css}"></head>
+<body><main class="form-page"><h1>Не удалось открыть урок</h1><p class="errors" th:text="${message}"></p>
+    <a th:href="@{/schedule}">Вернуться к расписанию</a></main></body>
+</html>
