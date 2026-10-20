@@ -1,0 +1,80 @@
+﻿<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Расписание на неделю — EduJournal</title><link rel="stylesheet" th:href="@{/schedule.css}">
+</head>
+<body>
+<header><a th:href="@{/schedule}" class="brand">EduJournal</a><span>Демонстрационная школа</span></header>
+<main class="week-page">
+    <p class="eyebrow">Учебный процесс · деморежим</p>
+    <div class="heading">
+        <div><h1>Расписание по классам</h1><p>Понедельник — пятница · 6 уроков в день · время Кыргызстана</p></div>
+        <a class="button" th:href="@{/schedule/new(date=${newDate},classId=${classId})}">+ Добавить урок</a>
+    </div>
+    <div class="success" role="status" th:if="${success}" th:text="${success}"></div>
+    <form class="filters panel week-filters" method="get" th:action="@{/schedule}">
+        <label for="date">Неделя с</label><input type="date" id="date" name="date" th:value="${date}" required>
+        <label for="classId">Класс</label>
+        <select name="classId" id="classId">
+            <option value="">Все классы</option>
+            <option th:each="c : ${catalog.classes}" th:value="${c.id}" th:text="${c.name}" th:selected="${classId != null and classId == c.id}"></option>
+        </select>
+        <button class="secondary" type="submit">Показать</button>
+    </form>
+    <nav class="week-nav" aria-label="Выбор недели">
+        <a th:href="@{/schedule(date=${date.minusWeeks(1)},classId=${classId})}">← Предыдущая неделя</a>
+        <strong th:text="|${#temporals.format(date, 'dd.MM.yyyy')} — ${#temporals.format(date.plusDays(4), 'dd.MM.yyyy')}|"></strong>
+        <a th:href="@{/schedule(date=${date.plusWeeks(1)},classId=${classId})}">Следующая неделя →</a>
+        <a th:href="@{/schedule(classId=${classId})}">Текущая неделя</a>
+    </nav>
+    <section class="class-week panel" th:each="schoolClass : ${week.classes}">
+        <div class="class-heading"><h2 th:text="|${schoolClass.name} класс|"></h2>
+            <span th:text="${schoolClass.lessonCount == 0 ? 'На этой неделе уроков пока нет' : 'Запланировано уроков: ' + schoolClass.lessonCount}"></span>
+        </div>
+        <div class="table-wrap" role="region" th:attr="aria-label=|Расписание ${schoolClass.name}|" tabindex="0">
+            <table class="week-table">
+                <caption class="sr-only" th:text="|Расписание ${schoolClass.name} с ${date}|"></caption>
+                <thead><tr><th scope="col" class="bell-column">Урок</th>
+                    <th scope="col" th:each="day : ${week.days}">
+                        <span th:text="${day.name}"></span><small th:text="${#temporals.format(day.date, 'dd.MM')}"></small>
+                    </th>
+                </tr></thead>
+                <tbody>
+                <tr th:each="row : ${schoolClass.rows}">
+                    <th scope="row" class="bell-column"><strong th:text="${row.slot.number}"></strong>
+                        <span class="bell-time" th:text="|${row.slot.start}–${row.slot.end}|"></span>
+                        <small th:if="${row.slot.breakMinutes > 0}" th:classappend="${row.slot.breakMinutes == 15 ? 'long-break' : ''}"
+                               th:text="|Перемена ${row.slot.breakMinutes} мин|"></small>
+                    </th>
+                    <td class="lesson-cell" th:each="cell : ${row.cells}">
+                        <article class="lesson-card" th:each="lesson : ${cell.lessons}">
+                            <strong th:text="${catalog.name(catalog.subjects, lesson.subjectId)}"></strong>
+                            <span th:text="${catalog.name(catalog.teachers, lesson.teacherId)}"></span>
+                            <span th:text="|Каб. ${catalog.name(catalog.rooms, lesson.roomId)}|"></span>
+                            <small th:if="${lesson.subgroupId != null}" th:text="${catalog.name(catalog.subgroups, lesson.subgroupId)}"></small>
+                            <small class="recurrence-badge" th:if="${lesson.seriesId != null}">Еженедельно</small>
+                            <a th:if="${scheduleService.editable(lesson)}" th:href="@{/schedule/{id}/edit(id=${lesson.id})}">Изменить</a>
+                            <small th:unless="${scheduleService.editable(lesson)}">Редактирование закрыто</small>
+                        </article>
+                        <a class="add-cell" th:if="${scheduleService.canAdd(cell.date, row.slot)}"
+                           th:href="@{/schedule/new(date=${cell.date},classId=${schoolClass.id},lessonNumber=${row.slot.number})}"
+                           th:attr="aria-label=|Добавить урок ${row.slot.number}, ${cell.date}, ${schoolClass.name}|">+ Добавить</a>
+                        <span class="empty-cell" th:if="${#lists.isEmpty(cell.lessons) and !scheduleService.canAdd(cell.date, row.slot)}">—</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <section class="panel legacy-lessons" th:unless="${#lists.isEmpty(week.outsideGrid)}">
+        <h2>Уроки вне новой сетки звонков</h2>
+        <p>Эти записи были созданы с другим временем или в выходной. При редактировании выберите будний день и номер урока.</p>
+        <ul><li th:each="lesson : ${week.outsideGrid}">
+            <span th:text="|${#temporals.format(lesson.date, 'dd.MM')} · ${lesson.startTime}–${lesson.endTime} · ${catalog.name(catalog.classes, lesson.classId)} · ${catalog.name(catalog.subjects, lesson.subjectId)}|"></span>
+            <a th:if="${scheduleService.editable(lesson)}" th:href="@{/schedule/{id}/edit(id=${lesson.id})}">Изменить</a>
+        </li></ul>
+    </section>
+    <p class="hint">Нажмите «Добавить» в нужной ячейке. В форме можно повторять урок каждую неделю до выбранной даты.</p>
+</main>
+</body></html>
