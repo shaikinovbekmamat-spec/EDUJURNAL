@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Панель директора</title>
+</head>
+<body>
+<h1>Панель директора</h1>
+<p>Вы вошли как: <strong th:text="${#authentication?.name ?: 'Неизвестно'}"></strong></p>
+<p>Роль: ADMIN</p>
+<hr>
+<a href="/schedule">Перейти к расписанию</a> |
+<a href="/logout">Выйти</a>
+</body>
+</html>

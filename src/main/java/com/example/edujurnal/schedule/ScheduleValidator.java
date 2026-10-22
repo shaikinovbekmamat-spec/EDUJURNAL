@@ -1,5 +1,6 @@
 package com.example.edujurnal.schedule;
 
+import com.example.edujurnal.Entity.Lesson;
 import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;

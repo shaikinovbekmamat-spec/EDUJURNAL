@@ -1,5 +1,7 @@
 package com.example.edujurnal.schedule;
 
+import com.example.edujurnal.Entity.Lesson;
+
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;

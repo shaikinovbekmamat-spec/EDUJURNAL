@@ -1,5 +1,6 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.Entity;
 
+import com.example.edujurnal.schedule.LessonForm;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,17 +30,20 @@ public class Lesson {
     private String requestToken;
     private String seriesId;
 
-    void assignSeries(String seriesId) {
+    // СДЕЛАЛИ PUBLIC
+    public void assignSeries(String seriesId) {
         this.seriesId = seriesId;
     }
 
-    Lesson(long schoolId, LessonForm form) {
+    // СДЕЛАЛИ PUBLIC
+    public Lesson(long schoolId, LessonForm form) {
         this.schoolId = schoolId;
         this.requestToken = form.getRequestToken();
         apply(form);
     }
 
-    void apply(LessonForm form) {
+    // СДЕЛАЛИ PUBLIC
+    public void apply(LessonForm form) {
         classId = form.getClassId();
         subgroupId = form.getSubgroupId();
         subjectId = form.getSubjectId();

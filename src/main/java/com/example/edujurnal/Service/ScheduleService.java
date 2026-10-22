@@ -1,5 +1,8 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.Service;
 
+import com.example.edujurnal.Entity.Lesson;
+import com.example.edujurnal.Repository.LessonRepository;
+import com.example.edujurnal.schedule.*;
 import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
