@@ -1,5 +1,6 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.Repository;
 
+import com.example.edujurnal.Entity.Lesson;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDate;
 import java.util.List;

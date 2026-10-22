@@ -28,7 +28,6 @@ public class ScheduleCatalog {
     }
 
     private List<Option> options(String type, long schoolId) {
-        // Only internal constant table names are passed here.
         String parent = type.equals("subgroup") ? "class_id" : "null";
         return jdbc.query("select id, name, " + parent + " as parent_id from schedule_" + type
                         + " where school_id = ? order by name, id",
@@ -36,13 +35,15 @@ public class ScheduleCatalog {
                         rs.getObject("parent_id", Long.class)), schoolId);
     }
 
-    void lockSchool(long schoolId) {
+    // СДЕЛАЛИ PUBLIC
+    public void lockSchool(long schoolId) {
         if (jdbc.queryForList("select id from schedule_school where id = ? for update", schoolId).isEmpty()) {
             throw new ScheduleException("Школа не найдена.");
         }
     }
 
-    void validate(long schoolId, LessonForm form) {
+    // СДЕЛАЛИ PUBLIC
+    public void validate(long schoolId, LessonForm form) {
         Catalog c = forSchool(schoolId);
         require(c.classes(), form.getClassId(), "Класс");
         require(c.subjects(), form.getSubjectId(), "Предмет");
@@ -60,7 +61,8 @@ public class ScheduleCatalog {
         }
     }
 
-    boolean shareStudents(long first, long second, LocalDate date) {
+    // СДЕЛАЛИ PUBLIC
+    public boolean shareStudents(long first, long second, LocalDate date) {
         return jdbc.queryForObject("""
                 select count(*) from schedule_membership a
                 join schedule_membership b on a.student_id = b.student_id
