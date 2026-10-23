@@ -17,7 +17,7 @@ public class User {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String phoneNumber;
+    private String login; // было phoneNumber
 
     @Column(nullable = false)
     private String password;
@@ -26,11 +26,15 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id")
+    private School school; // связь со школой
+
     @Column(nullable = false)
     private boolean enabled = true;
 
-    @Column(nullable = false)
-    private int failedAttempts = 0;
-
+    @Column(name = "full_name")
     private String fullName;
+
+    // failedAttempts удален, так как логика теперь в сессии
 }

@@ -1,7 +1,6 @@
 package com.example.edujurnal.Controller;
 
 import jakarta.servlet.http.HttpSession;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,11 +15,8 @@ public class AuthController {
                         HttpSession session,
                         Model model) {
         if (error != null) {
-            Object ex = session.getAttribute("SPRING_SECURITY_LAST_EXCEPTION");
-            String errorMessage = (ex instanceof AuthenticationException ae && ae.getMessage() != null)
-                    ? ae.getMessage()
-                    : "Неверный номер или пароль";
-            model.addAttribute("error", errorMessage);
+            Object msg = session.getAttribute("SPRING_SECURITY_LAST_EXCEPTION");
+            model.addAttribute("error", msg != null ? msg.toString() : "Неверный логин или пароль");
             session.removeAttribute("SPRING_SECURITY_LAST_EXCEPTION");
         }
         if (logout != null) {

@@ -1,7 +1,5 @@
 package com.example.edujurnal.auth;
 
-import com.example.edujurnal.Entity.User;
-import com.example.edujurnal.Service.UserService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,36 +12,26 @@ import java.io.IOException;
 @Component
 public class CustomAuthenticationFailureHandler extends SimpleUrlAuthenticationFailureHandler {
 
-    private final UserService userService;
+    private final LoginAttemptService loginAttemptService;
 
-    public CustomAuthenticationFailureHandler(UserService userService) {
-        this.userService = userService;
+    public CustomAuthenticationFailureHandler(LoginAttemptService loginAttemptService) {
+        this.loginAttemptService = loginAttemptService;
     }
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception) throws IOException, ServletException {
-        String phoneNumber = request.getParameter("phoneNumber");
-        String errorMessage = "Неверный номер или пароль";
+        String errorMessage;
 
-        if (phoneNumber != null) {
-            User user = userService.findByPhoneNumber(phoneNumber);
-
-            if (user != null) {
-                if (!user.isEnabled()) {
-                    errorMessage = "Аккаунт заблокирован после 3 неудачных попыток входа";
-                } else {
-                    userService.increaseFailedAttempts(phoneNumber);
-                    user = userService.findByPhoneNumber(phoneNumber);
-
-                    int remainingAttempts = 3 - user.getFailedAttempts();
-
-                    if (remainingAttempts > 0) {
-                        errorMessage = "Неверный пароль. Осталось попыток: " + remainingAttempts;
-                    } else {
-                        errorMessage = "Аккаунт заблокирован после 3 неудачных попыток входа";
-                    }
-                }
+        if (loginAttemptService.isLockedOut(request.getSession())) {
+            errorMessage = "Слишком много неудачных попыток. Попробуйте позже.";
+        } else {
+            boolean locked = loginAttemptService.registerFailure(request.getSession());
+            if (locked) {
+                errorMessage = "Процедура ввода завершена. Попробуйте снова через 5 минут.";
+            } else {
+                int remaining = loginAttemptService.getRemainingAttempts(request.getSession());
+                errorMessage = "Неверный логин или пароль. Осталось попыток: " + remaining;
             }
         }
 

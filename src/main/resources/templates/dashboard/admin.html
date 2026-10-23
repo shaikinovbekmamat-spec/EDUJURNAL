@@ -1,15 +1,107 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Панель директора</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кабинет директора — EduJurnal</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6fa;
+            margin: 0;
+            padding: 40px 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        h1 {
+            color: #1a1a2e;
+            margin-top: 0;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .info {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .info p {
+            margin: 5px 0;
+        }
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 14px 20px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #fff;
+            background: #667eea;
+            transition: 0.3s;
+            text-align: center;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background: #5a6fd6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .btn-primary {
+            background: #28a745; /* Зеленая кнопка для расписания */
+        }
+        .btn-primary:hover {
+            background: #218838;
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        .btn-outline {
+            background: transparent;
+            color: #dc3545;
+            border: 2px solid #dc3545;
+        }
+        .btn-outline:hover {
+            background: #dc3545;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+        .divider {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 20px 0;
+        }
+    </style>
 </head>
 <body>
-<h1>Панель директора</h1>
-<p>Вы вошли как: <strong th:text="${#authentication?.name ?: 'Неизвестно'}"></strong></p>
-<p>Роль: ADMIN</p>
-<hr>
-<a href="/schedule">Перейти к расписанию</a> |
-<a href="/logout">Выйти</a>
+<div class="container">
+    <h1>Кабинет директора</h1>
+
+    <div class="info">
+        <p>Вы вошли как: <strong th:text="${#authentication?.name ?: 'Неизвестно'}"></strong></p>
+        <p>Ваша роль: <strong>DIRECTOR</strong></p>
+    </div>
+
+    <p>Добро пожаловать в панель управления школой. Здесь вы можете управлять расписанием, сотрудниками и учебным процессом.</p>
+
+    <div class="divider"></div>
+
+    <div class="actions">
+        <!-- Главная кнопка перехода к расписанию -->
+        <a href="/schedule" class="btn btn-primary">📅 Перейти к расписанию</a>
+
+        <!-- Кнопка выхода -->
+        <a href="/logout" class="btn btn-outline">Выйти из системы</a>
+    </div>
+</div>
 </body>
 </html>

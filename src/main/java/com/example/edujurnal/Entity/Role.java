@@ -1,9 +1,11 @@
 package com.example.edujurnal.Entity;
 
 public enum Role {
-    ADMIN("Администратор"),
+    OWNER("Владелец"),
+    DIRECTOR("Директор"), // вместо ADMIN
     TEACHER("Учитель"),
-    STUDENT("Ученик");
+    STUDENT("Ученик"),
+    PARENT("Родитель");
 
     private final String displayName;
 
