@@ -1,5 +1,7 @@
 package com.example.edujurnal.schedule;
 
+import com.example.edujurnal.Entity.Lesson;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.IntStream;

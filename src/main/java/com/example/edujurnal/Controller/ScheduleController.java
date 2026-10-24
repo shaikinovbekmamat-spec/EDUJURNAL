@@ -1,5 +1,8 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.Controller;
 
+import com.example.edujurnal.Entity.Lesson;
+import com.example.edujurnal.Service.ScheduleService;
+import com.example.edujurnal.schedule.*;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.context.annotation.Profile;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -37,11 +40,6 @@ public class ScheduleController {
     void formFields(WebDataBinder binder) {
         binder.setAllowedFields("version", "classId", "subgroupId", "subjectId", "teacherId", "roomId",
                 "date", "requestToken", "lessonNumber", "repeatWeekly", "repeatUntil", "applyFollowing", "seriesRevision");
-    }
-
-    @GetMapping("/")
-    public String home() {
-        return "redirect:/schedule";
     }
 
     @GetMapping("/schedule")

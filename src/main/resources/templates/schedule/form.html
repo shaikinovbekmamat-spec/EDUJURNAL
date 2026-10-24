@@ -1,65 +1,108 @@
 <!doctype html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
-    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${lessonId == null ? 'Новый урок — EduJournal' : 'Изменение урока — EduJournal'}"></title>
     <link rel="stylesheet" th:href="@{/schedule.css}">
 </head>
 <body>
-<header><a th:href="@{/schedule}" class="brand">EduJournal</a><span>Демонстрационная школа</span></header>
+<header>
+    <a th:href="@{/schedule}" class="brand">EduJournal</a>
+    <span>Демонстрационная школа</span>
+</header>
 <main class="form-page">
     <a th:href="@{/schedule(date=${form.date},classId=${form.classId})}">← К расписанию класса</a>
-    <h1 th:text="${lessonId == null ? 'Новый урок' : 'Редактирование урока'}"></h1>
-    <p>Выберите номер урока и участников. Время устанавливается по школьному расписанию звонков.</p>
-    <form class="panel lesson-form" method="post" th:object="${form}"
-          th:action="${lessonId == null ? '/schedule' : '/schedule/' + lessonId}">
-        <input type="hidden" name="csrf" th:value="${csrf}">
-        <input type="hidden" th:field="*{version}"><input type="hidden" th:field="*{requestToken}">
-        <input type="hidden" th:field="*{seriesRevision}">
-        <div class="errors" role="alert" th:if="${#fields.hasAnyErrors()}">
-            <strong>Урок не сохранён</strong><ul><li th:each="error : ${#fields.allErrors()}" th:text="${error}"></li></ul>
-        </div>
-        <div class="grid">
-            <label>Класс<select th:field="*{classId}" required>
-                <option value="">Выберите класс</option><option th:each="o : ${catalog.classes}" th:value="${o.id}" th:text="${o.name}"></option>
-            </select></label>
-            <label>Подгруппа<select th:field="*{subgroupId}">
-                <option value="">Весь класс</option><option th:each="o : ${catalog.subgroups}" th:value="${o.id}"
-                    th:attr="data-class=${o.classId}" th:text="|${catalog.name(catalog.classes, o.classId)} · ${o.name}|"></option>
-            </select></label>
-            <label>Предмет<select th:field="*{subjectId}" required>
-                <option value="">Выберите предмет</option><option th:each="o : ${catalog.subjects}" th:value="${o.id}" th:text="${o.name}"></option>
-            </select></label>
-            <label>Учитель<select th:field="*{teacherId}" required>
-                <option value="">Выберите учителя</option><option th:each="o : ${catalog.teachers}" th:value="${o.id}" th:text="${o.name}"></option>
-            </select></label>
-            <label><span th:text="${lessonId == null ? 'Дата первого урока' : 'Дата урока'}"></span><input type="date" th:field="*{date}" required></label>
-            <label>Кабинет<select th:field="*{roomId}" required>
-                <option value="">Выберите кабинет</option><option th:each="o : ${catalog.rooms}" th:value="${o.id}" th:text="${o.name}"></option>
-            </select></label>
-            <label>Номер урока<select th:field="*{lessonNumber}" required>
-                <option value="">Выберите урок</option>
-                <option th:each="slot : ${slots}" th:value="${slot.number}" th:text="|${slot.number} урок · ${slot.start}–${slot.end}|"></option>
-            </select></label>
-        </div>
-        <p class="hint" th:if="${legacyTime != null}" th:text="|Прежнее время: ${legacyTime}. Выберите один из шести уроков новой сетки.|"></p>
-        <fieldset class="repeat-panel" th:if="${lessonId == null}">
-            <legend>Повторение</legend>
-            <label class="check-label"><input type="checkbox" th:field="*{repeatWeekly}">Повторять каждую неделю в этот день</label>
-            <label class="repeat-end" for="repeatUntil">Повторять по дату включительно
-                <input type="date" th:field="*{repeatUntil}">
-            </label>
-            <p class="hint">Укажите конец четверти или другой период. Уроки появятся на всех следующих неделях автоматически. Для разового урока снимите галочку.</p>
-        </fieldset>
-        <fieldset class="repeat-panel" th:if="${lessonId != null and recurring == true}">
-            <legend>Какие уроки изменить</legend>
-            <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="false">Только этот урок</label>
-            <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="true">Этот и все последующие повторения</label>
-            <p class="hint">Для всех повторений можно изменить предмет, класс, подгруппу, учителя, кабинет и номер урока. Для переноса даты выберите только один урок.</p>
-        </fieldset>
-        <p class="hint">Все часы указаны по времени Кыргызстана. Начавшиеся уроки недоступны для редактирования.</p>
-        <div class="actions"><button type="submit">Сохранить</button><a th:href="@{/schedule(date=${form.date},classId=${form.classId})}">Отмена</a></div>
-    </form>
+
+    <!-- ЗАЩИТА: Показываем форму только директору -->
+    <div sec:authorize="hasRole('DIRECTOR')">
+        <h1 th:text="${lessonId == null ? 'Новый урок' : 'Редактирование урока'}"></h1>
+        <p>Выберите номер урока и участников. Время устанавливается по школьному расписанию звонков.</p>
+
+        <form class="panel lesson-form" method="post" th:object="${form}"
+              th:action="${lessonId == null ? '/schedule' : '/schedule/' + lessonId}">
+            <input type="hidden" name="csrf" th:value="${csrf}">
+            <input type="hidden" th:field="*{version}"><input type="hidden" th:field="*{requestToken}">
+            <input type="hidden" th:field="*{seriesRevision}">
+
+            <div class="errors" role="alert" th:if="${#fields.hasAnyErrors()}">
+                <strong>Урок не сохранён</strong>
+                <ul>
+                    <li th:each="error : ${#fields.allErrors()}" th:text="${error}"></li>
+                </ul>
+            </div>
+
+            <div class="grid">
+                <label>Класс<select th:field="*{classId}" required>
+                    <option value="">Выберите класс</option>
+                    <option th:each="o : ${catalog.classes}" th:value="${o.id}" th:text="${o.name}"></option>
+                </select></label>
+
+                <label>Подгруппа<select th:field="*{subgroupId}">
+                    <option value="">Весь класс</option>
+                    <option th:each="o : ${catalog.subgroups}" th:value="${o.id}"
+                            th:attr="data-class=${o.classId}" th:text="|${catalog.name(catalog.classes, o.classId)} · ${o.name}|"></option>
+                </select></label>
+
+                <label>Предмет<select th:field="*{subjectId}" required>
+                    <option value="">Выберите предмет</option>
+                    <option th:each="o : ${catalog.subjects}" th:value="${o.id}" th:text="${o.name}"></option>
+                </select></label>
+
+                <label>Учитель<select th:field="*{teacherId}" required>
+                    <option value="">Выберите учителя</option>
+                    <option th:each="o : ${catalog.teachers}" th:value="${o.id}" th:text="${o.name}"></option>
+                </select></label>
+
+                <label><span th:text="${lessonId == null ? 'Дата первого урока' : 'Дата урока'}"></span>
+                    <input type="date" th:field="*{date}" required>
+                </label>
+
+                <label>Кабинет<select th:field="*{roomId}" required>
+                    <option value="">Выберите кабинет</option>
+                    <option th:each="o : ${catalog.rooms}" th:value="${o.id}" th:text="${o.name}"></option>
+                </select></label>
+
+                <label>Номер урока<select th:field="*{lessonNumber}" required>
+                    <option value="">Выберите урок</option>
+                    <option th:each="slot : ${slots}" th:value="${slot.number}" th:text="|${slot.number} урок · ${slot.start}–${slot.end}|"></option>
+                </select></label>
+            </div>
+
+            <p class="hint" th:if="${legacyTime != null}" th:text="|Прежнее время: ${legacyTime}. Выберите один из шести уроков новой сетки.|"></p>
+
+            <fieldset class="repeat-panel" th:if="${lessonId == null}">
+                <legend>Повторение</legend>
+                <label class="check-label"><input type="checkbox" th:field="*{repeatWeekly}">Повторять каждую неделю в этот день</label>
+                <label class="repeat-end" for="repeatUntil">Повторять по дату включительно
+                    <input type="date" th:field="*{repeatUntil}">
+                </label>
+                <p class="hint">Укажите конец четверти или другой период. Уроки появятся на всех следующих неделях автоматически. Для разового урока снимите галочку.</p>
+            </fieldset>
+
+            <fieldset class="repeat-panel" th:if="${lessonId != null and recurring == true}">
+                <legend>Какие уроки изменить</legend>
+                <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="false">Только этот урок</label>
+                <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="true">Этот и все последующие повторения</label>
+                <p class="hint">Для всех повторений можно изменить предмет, класс, подгруппу, учителя, кабинет и номер урока. Для переноса даты выберите только один урок.</p>
+            </fieldset>
+
+            <p class="hint">Все часы указаны по времени Кыргызстана. Начавшиеся уроки недоступны для редактирования.</p>
+            <div class="actions">
+                <button type="submit">Сохранить</button>
+                <a th:href="@{/schedule(date=${form.date},classId=${form.classId})}">Отмена</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Если зашел не директор -->
+    <div sec:authorize="!hasRole('DIRECTOR')">
+        <h1>Доступ запрещен</h1>
+        <p>Только директор школы может создавать и редактировать расписание.</p>
+        <a th:href="@{/schedule}">Вернуться к расписанию</a>
+    </div>
 </main>
 <script th:src="@{/schedule.js}" defer></script>
-</body></html>
+</body>
+</html>

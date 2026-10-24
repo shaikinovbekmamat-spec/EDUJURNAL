@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кабинет учителя — EduJurnal</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6fa; margin: 0; padding: 40px 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        h1 { color: #1a1a2e; margin-top: 0; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        .info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667eea; }
+        .info p { margin: 5px 0; }
+        .actions { display: flex; gap: 15px; }
+        .btn { display: inline-block; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; color: #fff; background: #667eea; transition: 0.3s; }
+        .btn:hover { background: #5a6fd6; }
+        .btn-outline { background: transparent; color: #667eea; border: 2px solid #667eea; }
+        .btn-outline:hover { background: #667eea; color: #fff; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Кабинет учителя</h1>
+    <div class="info">
+        <p>Вы вошли как: <strong th:text="${#authentication?.name ?: 'Неизвестно'}"></strong></p>
+        <p>Ваша роль: <strong>TEACHER</strong></p>
+    </div>
+    <p>Здесь скоро появится ваш журнал для выставления оценок и управления домашними заданиями.</p>
+    <div class="actions">
+        <a href="/logout" class="btn btn-outline">Выйти из системы</a>
+    </div>
+</div>
+</body>
+</html>

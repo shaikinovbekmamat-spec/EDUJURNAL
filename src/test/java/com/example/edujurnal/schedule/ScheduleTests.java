@@ -1,5 +1,8 @@
 package com.example.edujurnal.schedule;
 
+import com.example.edujurnal.Entity.Lesson;
+import com.example.edujurnal.Repository.LessonRepository;
+import com.example.edujurnal.Service.ScheduleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,8 +27,10 @@ import static org.assertj.core.api.Assertions.*;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles({"demo", "test"})
 class ScheduleTests {
-    @Autowired ScheduleService service;
-    @Autowired LessonRepository repository;
+    @Autowired
+    ScheduleService service;
+    @Autowired
+    LessonRepository repository;
     @Autowired JdbcTemplate jdbc;
     @Autowired ScheduleCatalog catalog;
     @LocalServerPort int port;
