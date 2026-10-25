@@ -1,8 +1,14 @@
-package com.example.edujurnal.Service;
+package com.example.edujurnal.service;
 
-import com.example.edujurnal.Entity.Lesson;
-import com.example.edujurnal.Repository.LessonRepository;
-import com.example.edujurnal.schedule.*;
+import com.example.edujurnal.exception.ScheduleException;
+import com.example.edujurnal.repository.ScheduleCatalog;
+import com.example.edujurnal.dto.LessonForm;
+import com.example.edujurnal.util.BellSchedule;
+import com.example.edujurnal.util.AcademicTerm;
+
+import com.example.edujurnal.entity.Lesson;
+import com.example.edujurnal.repository.LessonRepository;
+
 import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +40,18 @@ public class ScheduleService {
 
     public LocalDate today() {
         return LocalDate.now(clock);
+    }
+
+    public LocalDateTime now() {
+        return LocalDateTime.now(clock);
+    }
+
+    public List<Lesson> forTerm(long schoolId, AcademicTerm term) {
+        return lessons.findBySchoolIdAndDateBetweenOrderByDateAscStartTimeAscIdAsc(schoolId, term.start(), term.end());
+    }
+
+    public List<Lesson> forTerm(long schoolId, AcademicTerm term, Long classId, Long teacherId) {
+        return lessons.findVisibleForTerm(schoolId, term.start(), term.end(), classId, teacherId);
     }
 
     public boolean editable(Lesson lesson) {
@@ -98,7 +116,9 @@ public class ScheduleService {
             if (!form.getDate().equals(selected.getDate())) {
                 throw new ScheduleException("Для переноса на другую дату выберите «Только этот урок».");
             }
-            List<Lesson> following = series.stream().filter(l -> !l.getDate().isBefore(selected.getDate())).toList();
+            LocalDate termEnd = AcademicTerm.containing(selected.getDate()).end();
+            List<Lesson> following = series.stream().filter(l -> !l.getDate().isBefore(selected.getDate())
+                    && !l.getDate().isAfter(termEnd)).toList();
             for (Lesson occurrence : following) {
                 LessonForm change = form.copy();
                 change.setDate(occurrence.getDate());

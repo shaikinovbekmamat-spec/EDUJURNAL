@@ -4,5 +4,10 @@
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL CHECK (role IN ('OWNER', 'DIRECTOR', 'TEACHER', 'STUDENT', 'PARENT')),
         enabled BOOLEAN NOT NULL DEFAULT TRUE,
-        full_name VARCHAR(255)
+        full_name VARCHAR(255),
+        school_id BIGINT REFERENCES schedule_school(id),
+        CONSTRAINT chk_users_school_role CHECK (
+            (role = 'OWNER' AND school_id IS NULL) OR
+            (role <> 'OWNER' AND school_id IS NOT NULL)
+        )
     );

@@ -1,4 +1,4 @@
-package com.example.edujurnal.Controller;
+package com.example.edujurnal.controller;
 
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;

@@ -1,6 +1,8 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.dto;
 
-import com.example.edujurnal.Entity.Lesson;
+import com.example.edujurnal.util.BellSchedule;
+
+import com.example.edujurnal.entity.Lesson;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
@@ -38,7 +40,6 @@ public class LessonForm {
     @Pattern(regexp = "[a-f0-9\\-]{36}", message = "Откройте форму заново.")
     private String requestToken;
 
-    // СДЕЛАЛИ PUBLIC
     public static LessonForm from(Lesson lesson) {
         LessonForm form = new LessonForm();
         form.setVersion(lesson.getVersion());
@@ -55,7 +56,6 @@ public class LessonForm {
         return form;
     }
 
-    // СДЕЛАЛИ PUBLIC
     public LessonForm copy() {
         LessonForm copy = new LessonForm();
         copy.setVersion(version);

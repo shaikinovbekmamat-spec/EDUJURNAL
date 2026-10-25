@@ -1,9 +1,9 @@
-package com.example.edujurnal.Service;
+package com.example.edujurnal.service;
 
-import com.example.edujurnal.Entity.Role;
-import com.example.edujurnal.Entity.School;
-import com.example.edujurnal.Entity.User;
-import com.example.edujurnal.Repository.UserRepository;
+import com.example.edujurnal.entity.Role;
+import com.example.edujurnal.entity.School;
+import com.example.edujurnal.entity.User;
+import com.example.edujurnal.repository.UserRepository;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -25,7 +25,6 @@ public class UserService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String login) throws UsernameNotFoundException {
-        // Изменили findByPhoneNumber на findByLogin
         User user = userRepository.findByLogin(login)
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
 
@@ -43,7 +42,7 @@ public class UserService implements UserDetailsService {
     @Transactional
     public User createUser(String login, String rawPassword, Role role, String fullName, School school) {
         User user = new User();
-        user.setLogin(login); // было setPhoneNumber
+        user.setLogin(login);
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setRole(role);
         user.setFullName(fullName);

@@ -87,7 +87,7 @@
     <h1>Кабинет директора</h1>
 
     <div class="info">
-        <p>Вы вошли как: <strong th:text="${#authentication?.name ?: 'Неизвестно'}"></strong></p>
+        <p>Вы вошли как: <strong th:text="${currentLogin}"></strong></p>
         <p>Ваша роль: <strong>DIRECTOR</strong></p>
     </div>
 
@@ -100,7 +100,7 @@
         <a href="/schedule" class="btn btn-primary">📅 Перейти к расписанию</a>
 
         <!-- Кнопка выхода -->
-        <a href="/logout" class="btn btn-outline">Выйти из системы</a>
+        <form th:action="@{/logout}" method="post"><button type="submit" class="btn btn-outline">Выйти из системы</button></form>
     </div>
 </div>
 </body>

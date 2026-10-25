@@ -1,6 +1,5 @@
 <!doctype html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org"
-      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,19 +9,18 @@
 <body>
 <header>
     <a th:href="@{/schedule}" class="brand">EduJournal</a>
-    <span>Демонстрационная школа</span>
+    <span th:text="${school.name}"></span>
 </header>
 <main class="form-page">
     <a th:href="@{/schedule(date=${form.date},classId=${form.classId})}">← К расписанию класса</a>
 
     <!-- ЗАЩИТА: Показываем форму только директору -->
-    <div sec:authorize="hasRole('DIRECTOR')">
+    <div th:if="${canEdit}">
         <h1 th:text="${lessonId == null ? 'Новый урок' : 'Редактирование урока'}"></h1>
         <p>Выберите номер урока и участников. Время устанавливается по школьному расписанию звонков.</p>
 
         <form class="panel lesson-form" method="post" th:object="${form}"
-              th:action="${lessonId == null ? '/schedule' : '/schedule/' + lessonId}">
-            <input type="hidden" name="csrf" th:value="${csrf}">
+              th:action="@{/schedule{suffix}(suffix=${lessonId == null ? '' : '/' + lessonId})}">
             <input type="hidden" th:field="*{version}"><input type="hidden" th:field="*{requestToken}">
             <input type="hidden" th:field="*{seriesRevision}">
 
@@ -47,7 +45,8 @@
 
                 <label>Предмет<select th:field="*{subjectId}" required>
                     <option value="">Выберите предмет</option>
-                    <option th:each="o : ${catalog.subjects}" th:value="${o.id}" th:text="${o.name}"></option>
+                    <option th:each="o : ${catalog.subjects}" th:value="${o.id}" th:text="${o.name}"
+                            th:attr="data-teachers=${subjectTeachers[o.id] ?: ''}"></option>
                 </select></label>
 
                 <label>Учитель<select th:field="*{teacherId}" required>
@@ -55,13 +54,13 @@
                     <option th:each="o : ${catalog.teachers}" th:value="${o.id}" th:text="${o.name}"></option>
                 </select></label>
 
-                <label><span th:text="${lessonId == null ? 'Дата первого урока' : 'Дата урока'}"></span>
+                <label><span th:text="${lessonId == null ? 'Действует с даты' : 'Дата урока'}"></span>
                     <input type="date" th:field="*{date}" required>
                 </label>
 
                 <label>Кабинет<select th:field="*{roomId}" required>
                     <option value="">Выберите кабинет</option>
-                    <option th:each="o : ${catalog.rooms}" th:value="${o.id}" th:text="${o.name}"></option>
+                    <option th:each="o : ${catalog.rooms}" th:value="${o.id}" th:text="|${o.name} · ${o.capacity} мест|"></option>
                 </select></label>
 
                 <label>Номер урока<select th:field="*{lessonNumber}" required>
@@ -73,19 +72,19 @@
             <p class="hint" th:if="${legacyTime != null}" th:text="|Прежнее время: ${legacyTime}. Выберите один из шести уроков новой сетки.|"></p>
 
             <fieldset class="repeat-panel" th:if="${lessonId == null}">
-                <legend>Повторение</legend>
-                <label class="check-label"><input type="checkbox" th:field="*{repeatWeekly}">Повторять каждую неделю в этот день</label>
-                <label class="repeat-end" for="repeatUntil">Повторять по дату включительно
+                <legend>Период действия расписания</legend>
+                <input type="hidden" th:field="*{repeatWeekly}">
+                <label class="repeat-end" for="repeatUntil">Действует до даты включительно
                     <input type="date" th:field="*{repeatUntil}">
                 </label>
-                <p class="hint">Укажите конец четверти или другой период. Уроки появятся на всех следующих неделях автоматически. Для разового урока снимите галочку.</p>
+                <p class="hint">Занятие проводится в выбранный день до конца полугодия. Изменения расписания можно применить ко всему оставшемуся периоду.</p>
             </fieldset>
 
             <fieldset class="repeat-panel" th:if="${lessonId != null and recurring == true}">
                 <legend>Какие уроки изменить</legend>
-                <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="false">Только этот урок</label>
-                <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="true">Этот и все последующие повторения</label>
-                <p class="hint">Для всех повторений можно изменить предмет, класс, подгруппу, учителя, кабинет и номер урока. Для переноса даты выберите только один урок.</p>
+                <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="false">Разовое изменение на указанную дату</label>
+                <label class="check-label"><input type="radio" th:field="*{applyFollowing}" value="true">Применить ко всем оставшимся занятиям полугодия</label>
+                <p class="hint">По умолчанию изменения применяются до конца полугодия. Для переноса только одного занятия выберите разовое изменение.</p>
             </fieldset>
 
             <p class="hint">Все часы указаны по времени Кыргызстана. Начавшиеся уроки недоступны для редактирования.</p>
@@ -97,7 +96,7 @@
     </div>
 
     <!-- Если зашел не директор -->
-    <div sec:authorize="!hasRole('DIRECTOR')">
+    <div th:unless="${canEdit}">
         <h1>Доступ запрещен</h1>
         <p>Только директор школы может создавать и редактировать расписание.</p>
         <a th:href="@{/schedule}">Вернуться к расписанию</a>

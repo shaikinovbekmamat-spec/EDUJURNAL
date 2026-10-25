@@ -1,4 +1,4 @@
-package com.example.edujurnal.Controller;
+package com.example.edujurnal.controller;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,6 +8,6 @@ public class DirectorController {
 
     @GetMapping("/director/dashboard")
     public String dashboard() {
-        return "dashboard/admin"; // Возвращает файл templates/dashboard/director.html
+        return "dashboard/director";
     }
 }

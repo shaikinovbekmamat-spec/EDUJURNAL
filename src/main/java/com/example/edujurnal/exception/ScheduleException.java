@@ -1,4 +1,4 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.exception;
 
 import java.util.List;
 

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Расписание школ — EduJournal</title><link rel="stylesheet" th:href="@{/schedule.css}">
+</head>
+<body>
+<header><a th:href="@{/schedule}" class="brand">EduJournal</a><span>Кабинет владельца</span></header>
+<main class="form-page">
+    <h1>Расписание школ</h1>
+    <p>Выберите школу для просмотра расписания. Изменения вносит директор соответствующей школы.</p>
+    <p class="panel" th:if="${#lists.isEmpty(schools)}">Школы пока не добавлены.</p>
+    <ul class="panel"><li th:each="school : ${schools}">
+        <a th:href="@{/schedule(schoolId=${school.id})}" th:text="${school.name}"></a>
+    </li></ul>
+    <form th:action="@{/logout}" method="post"><button type="submit">Выйти</button></form>
+</main>
+</body></html>

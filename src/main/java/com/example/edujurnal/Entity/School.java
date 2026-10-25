@@ -1,4 +1,4 @@
-package com.example.edujurnal.Entity;
+package com.example.edujurnal.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

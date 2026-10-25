@@ -1,6 +1,9 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.service;
 
-import com.example.edujurnal.Entity.Lesson;
+import com.example.edujurnal.repository.ScheduleCatalog;
+import com.example.edujurnal.dto.LessonForm;
+
+import com.example.edujurnal.entity.Lesson;
 import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;

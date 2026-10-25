@@ -1,4 +1,4 @@
-package com.example.edujurnal.Entity;
+package com.example.edujurnal.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -17,7 +17,7 @@ public class User {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String login; // было phoneNumber
+    private String login;
 
     @Column(nullable = false)
     private String password;
@@ -36,5 +36,10 @@ public class User {
     @Column(name = "full_name")
     private String fullName;
 
-    // failedAttempts удален, так как логика теперь в сессии
+    @Column(name = "teacher_id")
+    private Long teacherId;
+
+    @Column(name = "student_class_id")
+    private Long studentClassId;
+
 }

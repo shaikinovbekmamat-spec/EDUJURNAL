@@ -1,6 +1,8 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.util;
 
-import com.example.edujurnal.Entity.Lesson;
+import com.example.edujurnal.exception.ScheduleException;
+
+import com.example.edujurnal.entity.Lesson;
 
 import java.time.LocalTime;
 import java.util.ArrayList;

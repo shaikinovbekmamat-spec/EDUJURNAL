@@ -12,13 +12,29 @@ function filterSubgroups(resetInvalid) {
 classSelect.addEventListener('change', () => filterSubgroups(true));
 filterSubgroups(true);
 
+const subjectSelect = document.getElementById('subjectId');
+const teacherSelect = document.getElementById('teacherId');
+function filterTeachers() {
+    const selected = subjectSelect.selectedOptions[0];
+    const allowedTeachers = (selected?.dataset.teachers || '').split(',');
+    for (const option of teacherSelect.options) {
+        const allowed = !option.value || allowedTeachers.includes(option.value);
+        option.hidden = !allowed;
+        option.disabled = !allowed;
+        if (!allowed && option.selected) teacherSelect.value = '';
+    }
+}
+subjectSelect.addEventListener('change', filterTeachers);
+filterTeachers();
+
 const repeat = document.getElementById('repeatWeekly');
 const until = document.getElementById('repeatUntil');
 const firstDate = document.getElementById('date');
 if (repeat && until) {
     function updateRepeat() {
-        until.disabled = !repeat.checked;
-        until.required = repeat.checked;
+        const enabled = repeat.type === 'hidden' ? repeat.value === 'true' : repeat.checked;
+        until.disabled = !enabled;
+        until.required = enabled;
         until.min = firstDate.value;
     }
     repeat.addEventListener('change', updateRepeat);

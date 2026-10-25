@@ -1,4 +1,6 @@
-package com.example.edujurnal.auth;
+package com.example.edujurnal.security;
+
+import com.example.edujurnal.service.LoginAttemptService;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

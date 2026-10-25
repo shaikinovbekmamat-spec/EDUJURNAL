@@ -1,4 +1,4 @@
-package com.example.edujurnal.auth;
+package com.example.edujurnal.service;
 
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Service;

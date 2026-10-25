@@ -1,5 +1,5 @@
 // OwnerController.java
-package com.example.edujurnal.Controller;
+package com.example.edujurnal.controller;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,6 +8,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class OwnerController {
     @GetMapping("/owner/dashboard")
     public String dashboard() {
-        return "dashboard/owner";
+        return "redirect:/schedule";
     }
 }

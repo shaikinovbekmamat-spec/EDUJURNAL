@@ -1,6 +1,9 @@
-package com.example.edujurnal.schedule;
+package com.example.edujurnal.dto;
 
-import com.example.edujurnal.Entity.Lesson;
+import com.example.edujurnal.repository.ScheduleCatalog;
+import com.example.edujurnal.util.BellSchedule;
+
+import com.example.edujurnal.entity.Lesson;
 
 import java.time.LocalDate;
 import java.util.List;

@@ -21,12 +21,13 @@
 <div class="container">
     <h1>Кабинет родителя</h1>
     <div class="info">
-        <p>Вы вошли как: <strong th:text="${#authentication?.name ?: 'Неизвестно'}"></strong></p>
+        <p>Вы вошли как: <strong th:text="${currentLogin}"></strong></p>
         <p>Ваша роль: <strong>PARENT</strong></p>
     </div>
     <p>Здесь скоро появится информация об успеваемости ваших детей и уведомления от школы.</p>
     <div class="actions">
-        <a href="/logout" class="btn btn-outline">Выйти из системы</a>
+        <a href="/schedule" class="btn">Расписание школы</a>
+        <form th:action="@{/logout}" method="post"><button type="submit" class="btn btn-outline">Выйти из системы</button></form>
     </div>
 </div>
 </body>

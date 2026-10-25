@@ -1,10 +1,21 @@
-package com.example.edujurnal.Controller;
+package com.example.edujurnal.controller;
 
-import com.example.edujurnal.Entity.Lesson;
-import com.example.edujurnal.Service.ScheduleService;
-import com.example.edujurnal.schedule.*;
-import jakarta.servlet.http.HttpSession;
-import org.springframework.context.annotation.Profile;
+import com.example.edujurnal.exception.ScheduleException;
+import com.example.edujurnal.repository.ScheduleCatalog;
+import com.example.edujurnal.dto.LessonForm;
+import com.example.edujurnal.dto.SemesterSchedule;
+import com.example.edujurnal.util.AcademicTerm;
+import com.example.edujurnal.util.BellSchedule;
+
+import com.example.edujurnal.entity.Lesson;
+import com.example.edujurnal.service.ScheduleService;
+
+import com.example.edujurnal.entity.School;
+import com.example.edujurnal.entity.Role;
+import com.example.edujurnal.service.ScheduleAccessService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
+
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -17,23 +28,37 @@ import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 import java.time.DayOfWeek;
-import java.time.temporal.TemporalAdjusters;
 import java.util.UUID;
 
-/**
- * Local demo adapter only. Production integration must derive school and director
- * permissions from the authenticated account, never from request parameters.
- */
 @Controller
-@Profile("demo")
 public class ScheduleController {
-    private static final long DEMO_SCHOOL = 1;
     private final ScheduleService service;
     private final ScheduleCatalog catalog;
+    private final ScheduleAccessService access;
 
-    public ScheduleController(ScheduleService service, ScheduleCatalog catalog) {
+    public ScheduleController(ScheduleService service, ScheduleCatalog catalog, ScheduleAccessService access) {
         this.service = service;
         this.catalog = catalog;
+        this.access = access;
+    }
+
+    @ModelAttribute
+    public void schoolContext(Authentication authentication,
+                              @RequestParam(required = false) Long schoolId, Model model) {
+        var user = access.currentUser(authentication);
+        var school = access.school(user, schoolId);
+        model.addAttribute("school", school);
+        model.addAttribute("canEdit", access.canEdit(user));
+        model.addAttribute("owner", user.getRole() == Role.OWNER);
+        model.addAttribute("teacher", user.getRole() == Role.TEACHER);
+        model.addAttribute("student", user.getRole() == Role.STUDENT);
+        if (user.getRole() == Role.OWNER) model.addAttribute("schools", access.availableSchools(user));
+    }
+
+    private long schoolId(Model model) {
+        School school = (School) model.getAttribute("school");
+        if (school == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Выберите школу.");
+        return school.getId();
     }
 
     @InitBinder("form")
@@ -44,93 +69,118 @@ public class ScheduleController {
 
     @GetMapping("/schedule")
     public String list(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-                       LocalDate date, @RequestParam(required = false) Long classId, Model model) {
+                       LocalDate date, @RequestParam(required = false) Long classId,
+                       @RequestParam(defaultValue = "false") boolean onlyMine,
+                       Authentication authentication, Model model) {
+        if (model.getAttribute("school") == null) return "schedule/select-school";
+        var user = access.currentUser(authentication);
+        access.school(user, schoolId(model));
+        Long visibleClass = access.visibleClass(user, classId);
+        Long visibleTeacher = access.visibleTeacher(user, onlyMine);
         LocalDate selected = date == null ? service.today() : date;
-        LocalDate monday = selected.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        var references = catalog.forSchool(DEMO_SCHOOL);
-        if (classId != null && references.classes().stream().noneMatch(c -> c.id() == classId)) {
+        AcademicTerm term = AcademicTerm.containing(selected);
+        var references = catalog.forSchool(schoolId(model));
+        if (visibleClass != null && references.classes().stream().noneMatch(c -> c.id() == visibleClass)) {
             throw new ScheduleException("Класс не найден в этой школе.");
         }
-        LocalDate newDate = monday.isAfter(service.today()) ? monday : service.today().plusDays(1);
+        var lessons = service.forTerm(schoolId(model), term, visibleClass, visibleTeacher);
+        var visibleClasses = references.classes().stream()
+                .filter(c -> visibleClass == null || c.id() == visibleClass)
+                .filter(c -> visibleTeacher == null || lessons.stream().anyMatch(l -> l.getClassId() == c.id())).toList();
+        references = new ScheduleCatalog.Catalog(visibleClasses, references.subgroups(), references.subjects(),
+                references.teachers(), references.rooms());
+        LocalDate newDate = term.start().isAfter(service.today()) ? term.start() : service.today().plusDays(1);
         while (newDate.getDayOfWeek().getValue() > 5) newDate = newDate.plusDays(1);
-        model.addAttribute("date", monday);
+        model.addAttribute("term", term);
+        model.addAttribute("terms", java.util.List.of(term.previous(), term, term.next()));
         model.addAttribute("newDate", newDate);
-        model.addAttribute("classId", classId);
-        model.addAttribute("week", WeekSchedule.build(monday, references, service.forWeek(DEMO_SCHOOL, monday), classId));
+        model.addAttribute("classId", visibleClass);
+        model.addAttribute("onlyMine", onlyMine);
+        model.addAttribute("emptyMessage", onlyMine ? "На это полугодие ваших уроков пока нет." : "В школе пока нет классов.");
+        model.addAttribute("timetable", SemesterSchedule.build(service.now(), term, references, lessons, visibleClass));
         model.addAttribute("catalog", references);
+        model.addAttribute("studentsByClass", references.classes().stream().collect(java.util.stream.Collectors.toMap(
+                ScheduleCatalog.Option::id, ScheduleCatalog.Option::studentCount)));
         model.addAttribute("scheduleService", service);
         return "schedule/list";
     }
 
+    @PreAuthorize("hasRole('DIRECTOR')")
     @GetMapping("/schedule/new")
     public String create(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                          LocalDate date, @RequestParam(required = false) Long classId,
-                         @RequestParam(defaultValue = "1") Integer lessonNumber, Model model, HttpSession session) {
+                         @RequestParam(defaultValue = "1") Integer lessonNumber, Model model) {
         LessonForm form = new LessonForm();
-        form.setDate(date == null ? service.today().plusDays(1) : date);
+        var currentTerm = AcademicTerm.containing(service.today());
+        form.setDate(date == null ? (currentTerm.start().isAfter(service.today())
+                ? currentTerm.start() : service.today().plusDays(1)) : date);
         while (form.getDate().getDayOfWeek().getValue() > 5) form.setDate(form.getDate().plusDays(1));
         form.setClassId(classId);
         form.setLessonNumber(BellSchedule.get(lessonNumber).number());
         form.setRepeatWeekly(true);
-        form.setRepeatUntil(form.getDate().plusMonths(3));
+        form.setRepeatUntil(AcademicTerm.containing(form.getDate()).end());
         form.setRequestToken(UUID.randomUUID().toString());
         model.addAttribute("form", form);
-        return prepare(null, model, session);
+        return prepare(null, model);
     }
 
+    @PreAuthorize("hasRole('DIRECTOR')")
     @GetMapping("/schedule/{id}/edit")
-    public String edit(@PathVariable long id, Model model, HttpSession session) {
-        Lesson lesson = service.get(DEMO_SCHOOL, id);
+    public String edit(@PathVariable long id, Model model) {
+        Lesson lesson = service.get(schoolId(model), id);
         if (!service.editable(lesson)) {
             throw new ScheduleException("Начавшийся или проведённый урок нельзя изменять.");
         }
-        model.addAttribute("form", service.editForm(DEMO_SCHOOL, id));
-        return prepare(id, model, session);
+        var form = service.editForm(schoolId(model), id);
+        form.setApplyFollowing(lesson.getSeriesId() != null);
+        model.addAttribute("form", form);
+        return prepare(id, model);
     }
 
+    @PreAuthorize("hasRole('DIRECTOR')")
     @PostMapping("/schedule")
     public String createSubmit(@ModelAttribute("form") LessonForm form, BindingResult binding,
-                               @RequestParam String csrf, HttpSession session, Model model,
+                               Model model,
                                RedirectAttributes redirect) {
-        return save(null, form, binding, csrf, session, model, redirect);
+        return save(null, form, binding, model, redirect);
     }
 
+    @PreAuthorize("hasRole('DIRECTOR')")
     @PostMapping("/schedule/{id}")
     public String editSubmit(@PathVariable long id, @ModelAttribute("form") LessonForm form,
-                             BindingResult binding, @RequestParam String csrf, HttpSession session,
+                             BindingResult binding,
                              Model model, RedirectAttributes redirect) {
-        return save(id, form, binding, csrf, session, model, redirect);
+        return save(id, form, binding, model, redirect);
     }
 
-    private String save(Long id, LessonForm form, BindingResult binding, String csrf, HttpSession session,
+    private String save(Long id, LessonForm form, BindingResult binding,
                         Model model, RedirectAttributes redirect) {
-        if (!csrf.equals(session.getAttribute("scheduleCsrf"))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Откройте форму заново.");
-        }
         if (!binding.hasErrors()) {
             try {
-                var result = service.savePlan(DEMO_SCHOOL, id, form);
+                if (id == null && form.isRepeatWeekly() && form.getDate() != null && form.getRepeatUntil() != null
+                        && form.getRepeatUntil().isAfter(AcademicTerm.containing(form.getDate()).end())) {
+                    throw new ScheduleException("Дата окончания не должна выходить за границы полугодия.");
+                }
+                var result = service.savePlan(schoolId(model), id, form);
                 redirect.addFlashAttribute("success", result.count() > 1
-                        ? "Еженедельное расписание сохранено. Уроков: " + result.count() + "."
+                        ? "Расписание на полугодие сохранено. Занятий: " + result.count() + "."
                         : id == null ? "Урок добавлен." : "Изменения сохранены.");
-                return "redirect:/schedule?date=" + result.first().getDate() + "&classId=" + result.first().getClassId();
+                return "redirect:/schedule?date=" + AcademicTerm.containing(result.first().getDate()).start()
+                        + "&classId=" + result.first().getClassId();
             } catch (ScheduleException ex) {
                 ex.getErrors().forEach(error -> binding.reject("schedule", error));
             }
         }
-        return prepare(id, model, session);
+        return prepare(id, model);
     }
 
-    private String prepare(Long id, Model model, HttpSession session) {
-        if (session.getAttribute("scheduleCsrf") == null) {
-            session.setAttribute("scheduleCsrf", UUID.randomUUID().toString());
-        }
-        model.addAttribute("csrf", session.getAttribute("scheduleCsrf"));
+    private String prepare(Long id, Model model) {
         model.addAttribute("lessonId", id);
-        model.addAttribute("catalog", catalog.forSchool(DEMO_SCHOOL));
+        model.addAttribute("catalog", catalog.forSchool(schoolId(model)));
+        model.addAttribute("subjectTeachers", catalog.subjectTeachers(schoolId(model)));
         model.addAttribute("slots", BellSchedule.SLOTS);
         if (id != null) {
-            var lesson = service.get(DEMO_SCHOOL, id);
+            var lesson = service.get(schoolId(model), id);
             model.addAttribute("recurring", lesson.getSeriesId() != null);
             model.addAttribute("legacyTime", BellSchedule.number(lesson) == null
                     ? lesson.getStartTime() + "–" + lesson.getEndTime() : null);
@@ -138,10 +188,4 @@ public class ScheduleController {
         return "schedule/form";
     }
 
-    @ExceptionHandler(ScheduleException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public String error(ScheduleException ex, Model model) {
-        model.addAttribute("message", ex.getMessage());
-        return "schedule/error";
-    }
 }

@@ -1,5 +1,5 @@
 // ParentController.java
-package com.example.edujurnal.Controller;
+package com.example.edujurnal.controller;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;

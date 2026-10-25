@@ -1,4 +1,4 @@
-package com.example.edujurnal.Config;
+package com.example.edujurnal.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

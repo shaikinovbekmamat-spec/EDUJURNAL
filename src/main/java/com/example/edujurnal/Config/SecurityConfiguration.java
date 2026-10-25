@@ -1,8 +1,8 @@
-package com.example.edujurnal.Config;
+package com.example.edujurnal.config;
 
-import com.example.edujurnal.Service.UserService;
-import com.example.edujurnal.auth.CustomAuthenticationFailureHandler;
-import com.example.edujurnal.auth.CustomAuthenticationSuccessHandler;
+import com.example.edujurnal.service.UserService;
+import com.example.edujurnal.security.CustomAuthenticationFailureHandler;
+import com.example.edujurnal.security.CustomAuthenticationSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -11,7 +11,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher; // Новый импорт
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
@@ -34,7 +34,9 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/css/**", "/js/**", "/images/**").permitAll()
+                        .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/schedule.css", "/schedule.js").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/schedule", "/schedule/**").hasRole("DIRECTOR")
+                        .requestMatchers("/schedule/new", "/schedule/*/edit").hasRole("DIRECTOR")
                         .requestMatchers("/owner/**").hasRole("OWNER")
                         .requestMatchers("/director/**").hasRole("DIRECTOR")
                         .requestMatchers("/teacher/**").hasRole("TEACHER")
@@ -53,8 +55,6 @@ public class SecurityConfiguration {
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")
-                        // Используем PathPatternRequestMatcher для Spring Security 7
-                        .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher("/logout"))
                         .logoutSuccessUrl("/login?logout")
                         .invalidateHttpSession(true)
                         .deleteCookies("JSESSIONID")
