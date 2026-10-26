@@ -24,8 +24,9 @@
         <p>Вы вошли как: <strong th:text="${currentLogin}"></strong></p>
         <p>Ваша роль: <strong>STUDENT</strong></p>
     </div>
-    <p>Здесь скоро появится ваш электронный дневник с оценками и домашними заданиями.</p>
+    <p>Ваши оценки по предметам, четвертям и учебным годам доступны в журнале.</p>
     <div class="actions">
+        <a href="/journal" class="btn">Мои оценки</a>
         <a href="/schedule" class="btn">Расписание школы</a>
         <form th:action="@{/logout}" method="post"><button type="submit" class="btn btn-outline">Выйти из системы</button></form>
     </div>

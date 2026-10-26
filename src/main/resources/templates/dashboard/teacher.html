@@ -24,8 +24,11 @@
         <p>Вы вошли как: <strong th:text="${currentLogin}"></strong></p>
         <p>Ваша роль: <strong>TEACHER</strong></p>
     </div>
-    <p>Здесь скоро появится ваш журнал для выставления оценок и управления домашними заданиями.</p>
+    <p>Откройте журнал назначенных классов и предметов, чтобы выставить оценки за сегодняшний день.</p>
     <div class="actions">
+        <a href="/journal/today" class="btn">Выставить оценки</a>
+        <a href="/journal" class="btn">Журнал</a>
+        <a href="/journal?family=true" class="btn">Мои дети</a>
         <a href="/schedule" class="btn">Расписание школы</a>
         <form th:action="@{/logout}" method="post"><button type="submit" class="btn btn-outline">Выйти из системы</button></form>
     </div>

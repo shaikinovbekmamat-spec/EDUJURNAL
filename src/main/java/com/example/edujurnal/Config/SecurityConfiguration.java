@@ -35,6 +35,9 @@ public class SecurityConfiguration {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/schedule.css", "/schedule.js").permitAll()
+                        .requestMatchers("/management", "/management/**").hasAnyRole("OWNER", "DIRECTOR")
+                        .requestMatchers(HttpMethod.POST, "/journal/**").hasRole("TEACHER")
+                        .requestMatchers("/journal", "/journal/**").hasAnyRole("DIRECTOR", "TEACHER", "STUDENT", "PARENT")
                         .requestMatchers(HttpMethod.POST, "/schedule", "/schedule/**").hasRole("DIRECTOR")
                         .requestMatchers("/schedule/new", "/schedule/*/edit").hasRole("DIRECTOR")
                         .requestMatchers("/owner/**").hasRole("OWNER")

@@ -7,6 +7,7 @@
 <body>
 <header><a th:href="@{/schedule}" class="brand">EduJournal</a><span th:text="${school.name}"></span></header>
 <main class="week-page">
+    <nav><a th:unless="${owner}" href="/journal">Журнал и оценки</a> <a th:if="${canEdit or owner}" href="/management">Управление школой</a></nav>
     <p class="eyebrow">Учебный процесс</p>
     <div class="heading">
         <div><h1>Расписание на полугодие</h1><p th:text="|${term.name} · ${#temporals.format(term.start, 'dd.MM.yyyy')} — ${#temporals.format(term.end, 'dd.MM.yyyy')}|"></p></div>

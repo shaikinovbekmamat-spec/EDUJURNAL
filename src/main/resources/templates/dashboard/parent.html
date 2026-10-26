@@ -24,8 +24,9 @@
         <p>Вы вошли как: <strong th:text="${currentLogin}"></strong></p>
         <p>Ваша роль: <strong>PARENT</strong></p>
     </div>
-    <p>Здесь скоро появится информация об успеваемости ваших детей и уведомления от школы.</p>
+    <p>Просматривайте оценки детей, связь с которыми подтверждена школой.</p>
     <div class="actions">
+        <a href="/journal" class="btn">Оценки детей</a>
         <a href="/schedule" class="btn">Расписание школы</a>
         <form th:action="@{/logout}" method="post"><button type="submit" class="btn btn-outline">Выйти из системы</button></form>
     </div>

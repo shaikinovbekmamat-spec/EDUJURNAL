@@ -1,0 +1,16 @@
+<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><body>
+<aside th:fragment="sidebar" class="sidebar">
+    <a class="logo" href="/journal"><b>E</b> EduJournal</a>
+    <nav aria-label="Основная навигация">
+        <a th:if="${user.role.name() == 'TEACHER'}" href="/journal/today">✎ Выставить оценки</a>
+        <a th:href="@{/{role}/dashboard(role=${#strings.toLowerCase(user.role.name())})}">⌂ Главная</a>
+        <a th:if="${user.role.name() != 'OWNER'}" href="/journal">☆ Журнал и оценки</a>
+        <a href="/schedule">▦ Расписание</a>
+        <a th:if="${user.role.name() == 'TEACHER'}" href="/journal?family=true">♡ Мои дети</a>
+        <a th:if="${user.role.name() == 'DIRECTOR' or user.role.name() == 'OWNER'}" href="/management">⚙ Управление школой</a>
+    </nav>
+    <div class="profile"><strong th:text="${user.fullName ?: user.login}"></strong><small th:text="${user.login}"></small>
+        <form th:action="@{/logout}" method="post"><button class="text-button" type="submit">Выйти</button></form>
+    </div>
+</aside>
+</body></html>

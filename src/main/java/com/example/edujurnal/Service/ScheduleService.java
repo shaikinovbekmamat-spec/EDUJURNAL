@@ -55,7 +55,7 @@ public class ScheduleService {
     }
 
     public boolean editable(Lesson lesson) {
-        return lesson.getDate().atTime(lesson.getStartTime()).isAfter(LocalDateTime.now(clock));
+        return lesson.getDate().atTime(lesson.getStartTime()).isAfter(LocalDateTime.now(clock)) && !catalog.hasGrades(lesson.getId());
     }
 
     public List<Lesson> forDate(long schoolId, LocalDate date) {

@@ -1,0 +1,8 @@
+<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Выставить оценки — EduJournal</title><link rel="stylesheet" href="/css/academic.css"></head><body>
+<aside th:replace="~{academic/layout :: sidebar}"></aside><main class="workspace"><h1>Выставить оценки</h1><p class="muted">Выберите свой урок, затем ученика и оценку. Оценки сохраняются только за сегодняшний день по времени Кыргызстана.</p>
+<form th:action="@{/journal/today}" method="get" class="filters"><label>Дата уроков<input type="date" name="date" th:value="${date}" required></label><button>Показать уроки</button><a href="/journal/today">Сегодня</a><a href="/journal">Все оценки и итоги</a></form>
+<p th:if="${user.teacherId == null}" class="notice">Аккаунт не связан с профилем преподавателя. Директору нужно открыть «Управление школой → Учебные профили» и выбрать ваш профиль из расписания.</p>
+<p th:if="${!date.equals(today)}" class="notice">Просмотр другой даты. Выставлять оценки можно только за сегодняшний день.</p>
+<section class="card" th:if="${#lists.isEmpty(lessons) and user.teacherId != null}"><h2>На эту дату ваших уроков нет</h2><p>Проверьте дату и расписание. Урок должен быть назначен вашему профилю преподавателя.</p><a href="/schedule?onlyMine=true">Открыть моё расписание</a></section>
+<section class="card" th:each="l : ${lessons}"><h2 th:text="|${l.time} · ${l.subject} · ${l.className}|"></h2><p th:text="|Учеников с аккаунтами: ${l.studentCount}|"></p><p th:text="${l.status()}"></p><a th:if="${l.assigned}" class="button" th:href="@{/journal/lessons/{id}(id=${l.id})}">Открыть урок</a></section>
+</main></body></html>

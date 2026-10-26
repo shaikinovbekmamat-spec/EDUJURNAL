@@ -63,6 +63,10 @@ public class ScheduleCatalog {
         }
     }
 
+    public boolean hasGrades(long lessonId) {
+        return jdbc.queryForObject("select count(*) from journal_grade where lesson_id=?", Long.class, lessonId) > 0;
+    }
+
     public void validate(long schoolId, LessonForm form) {
         Catalog c = forSchool(schoolId);
         require(c.classes(), form.getClassId(), "Класс");
