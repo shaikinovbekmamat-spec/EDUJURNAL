@@ -1,6 +1,5 @@
 package com.example.edujurnal.security;
 
-import com.example.edujurnal.service.LoginAttemptService;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,18 +14,9 @@ import java.io.IOException;
 @Component
 public class CustomAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private final LoginAttemptService loginAttemptService;
-
-    public CustomAuthenticationSuccessHandler(LoginAttemptService loginAttemptService) {
-        this.loginAttemptService = loginAttemptService;
-    }
-
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
-        // Сбрасываем счетчик при успешном входе
-        loginAttemptService.reset(request.getSession());
-
         String targetUrl = "/student/dashboard";
 
         for (GrantedAuthority authority : authentication.getAuthorities()) {

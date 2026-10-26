@@ -1,48 +1,71 @@
 package com.example.edujurnal.service;
 
-import jakarta.servlet.http.HttpSession;
+import com.example.edujurnal.entity.User;
+import com.example.edujurnal.repository.UserRepository;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 public class LoginAttemptService {
-
     private static final int MAX_ATTEMPTS = 3;
-    private static final String SESSION_KEY = "LOGIN_ATTEMPTS";
-    private static final String LOCKOUT_KEY = "LOGIN_LOCKOUT_UNTIL";
-    private static final long LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 минут
+    private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(5);
 
-    public boolean isLockedOut(HttpSession session) {
-        Long lockoutUntil = (Long) session.getAttribute(LOCKOUT_KEY);
-        if (lockoutUntil == null) return false;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final String dummyPasswordHash;
 
-        if (System.currentTimeMillis() > lockoutUntil) {
-            session.removeAttribute(LOCKOUT_KEY);
-            session.removeAttribute(SESSION_KEY);
-            return false;
+    public LoginAttemptService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.dummyPasswordHash = passwordEncoder.encode("unknown-account-password");
+    }
+
+    // Return failures instead of throwing so that the counter is committed first.
+    @Transactional
+    public LoginResult authenticate(String login, String password) {
+        User user = userRepository.findByLoginForUpdate(login).orElse(null);
+        if (user == null) {
+            passwordEncoder.matches(password, dummyPasswordHash);
+            return new LoginResult(Status.BAD_CREDENTIALS, null, MAX_ATTEMPTS);
         }
-        return true;
-    }
-
-    public int getRemainingAttempts(HttpSession session) {
-        Integer attempts = (Integer) session.getAttribute(SESSION_KEY);
-        if (attempts == null) attempts = 0;
-        return MAX_ATTEMPTS - attempts;
-    }
-
-    public boolean registerFailure(HttpSession session) {
-        Integer attempts = (Integer) session.getAttribute(SESSION_KEY);
-        attempts = (attempts == null) ? 1 : attempts + 1;
-        session.setAttribute(SESSION_KEY, attempts);
-
-        if (attempts >= MAX_ATTEMPTS) {
-            session.setAttribute(LOCKOUT_KEY, System.currentTimeMillis() + LOCKOUT_DURATION_MS);
-            return true;
+        if (!user.isEnabled()) {
+            return new LoginResult(Status.DISABLED, null, 0);
         }
-        return false;
+
+        Instant now = Instant.now();
+        if (user.getLockedUntil() != null) {
+            if (now.isBefore(user.getLockedUntil())) {
+                return new LoginResult(Status.LOCKED, null, 0);
+            }
+            user.setFailedAttempts(0);
+            user.setLockedUntil(null);
+        }
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            user.setFailedAttempts(user.getFailedAttempts() + 1);
+            if (user.getFailedAttempts() >= MAX_ATTEMPTS) {
+                user.setLockedUntil(Instant.now().plus(LOCKOUT_DURATION));
+                return new LoginResult(Status.LOCKED, null, 0);
+            }
+            return new LoginResult(Status.BAD_CREDENTIALS, null, MAX_ATTEMPTS - user.getFailedAttempts());
+        }
+
+        user.setFailedAttempts(0);
+        user.setLockedUntil(null);
+        UserDetails principal = org.springframework.security.core.userdetails.User
+                .withUsername(user.getLogin())
+                .password(user.getPassword())
+                .authorities("ROLE_" + user.getRole().name())
+                .build();
+        return new LoginResult(Status.SUCCESS, principal, MAX_ATTEMPTS);
     }
 
-    public void reset(HttpSession session) {
-        session.removeAttribute(SESSION_KEY);
-        session.removeAttribute(LOCKOUT_KEY);
-    }
+    public enum Status { SUCCESS, BAD_CREDENTIALS, LOCKED, DISABLED }
+
+    public record LoginResult(Status status, UserDetails principal, int remainingAttempts) {}
 }

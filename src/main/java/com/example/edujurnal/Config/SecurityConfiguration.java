@@ -1,12 +1,12 @@
 package com.example.edujurnal.config;
 
-import com.example.edujurnal.service.UserService;
+import com.example.edujurnal.security.AccountAuthenticationProvider;
 import com.example.edujurnal.security.CustomAuthenticationFailureHandler;
 import com.example.edujurnal.security.CustomAuthenticationSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -18,14 +18,14 @@ import org.springframework.http.HttpMethod;
 @EnableMethodSecurity
 public class SecurityConfiguration {
 
-    private final UserService userService;
+    private final AccountAuthenticationProvider authenticationProvider;
     private final CustomAuthenticationSuccessHandler successHandler;
     private final CustomAuthenticationFailureHandler failureHandler;
 
-    public SecurityConfiguration(UserService userService,
+    public SecurityConfiguration(AccountAuthenticationProvider authenticationProvider,
                                  CustomAuthenticationSuccessHandler successHandler,
                                  CustomAuthenticationFailureHandler failureHandler) {
-        this.userService = userService;
+        this.authenticationProvider = authenticationProvider;
         this.successHandler = successHandler;
         this.failureHandler = failureHandler;
     }
@@ -60,13 +60,13 @@ public class SecurityConfiguration {
                         .deleteCookies("JSESSIONID")
                         .permitAll()
                 )
-                .userDetailsService(userService);
+                .authenticationManager(authenticationManager());
 
         return http.build();
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    public AuthenticationManager authenticationManager() {
+        return new ProviderManager(authenticationProvider);
     }
 }
