@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Управление родителями — EduJournal</title>
+    <link rel="stylesheet" href="/css/dashboard.css">
+<link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}">
+<a class="skip-link" href="#main">К содержимому</a>
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace">
+    <header class="page-header">
+        <div>
+            <h1>Управление родителями</h1>
+            <p class="subtitle" th:if="${managedClass != null}" th:text="${'Класс: ' + managedClass.class_name}">Класс</p>
+        </div>
+    </header>
+
+    <div th:if="${success}" class="card" style="background:var(--success-soft);color:var(--success);margin-bottom:24px;">
+        <p style="margin:0;" th:text="${success}"></p>
+    </div>
+
+    <div th:if="${error}" class="card" style="background:var(--danger-soft);color:var(--danger);margin-bottom:24px;">
+        <p style="margin:0;" th:text="${error}"></p>
+    </div>
+
+    <div th:if="${managedClass == null}" class="card">
+        <div class="empty-state">
+            <span class="empty-symbol" aria-hidden="true">○</span>
+            <h3>Вы не назначены классным руководителем</h3>
+            <p>Обратитесь к директору школы для назначения на класс.</p>
+        </div>
+    </div>
+
+    <div th:if="${managedClass != null}">
+        <section class="card">
+            <h2>Подтвердить связь родителя с учеником</h2>
+            <p class="muted" style="margin-bottom:20px;">Введите логин родителя или учителя и выберите ученика из вашего класса. Убедитесь в родстве по документам школы.</p>
+
+            <form th:action="@{/class-teacher/parents/link}" method="post" class="fields" style="display:grid;grid-template-columns:1fr 1fr auto;gap:16px;align-items:end;">
+                <label>
+                    Логин родителя или учителя
+                    <input name="parentLogin" type="text" maxlength="50" placeholder="Введите логин" required>
+                </label>
+                <label>
+                    Ученик вашего класса
+                    <select name="studentId" required>
+                        <option value="">Выберите ученика</option>
+                        <option th:each="s : ${students}" th:value="${s.id}" th:text="${s.full_name + ' · ' + s.login}"></option>
+                    </select>
+                </label>
+                <button type="submit" style="margin-bottom:0;">Подтвердить связь</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Существующие связи родителей</h2>
+                <span th:text="${#lists.size(links) + ' связей'}" style="color:var(--muted);"></span>
+            </div>
+
+            <div th:if="${#lists.isEmpty(links)}" class="empty-state">
+                <span class="empty-symbol" aria-hidden="true">○</span>
+                <h3>Связей пока нет</h3>
+                <p>Подтвердите связи родителей с учениками вашего класса.</p>
+            </div>
+
+            <div th:if="${!#lists.isEmpty(links)}" class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Родитель</th>
+                            <th>Ученик</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="link : ${links}">
+                            <td>
+                                <strong th:text="${link.parent_name}"></strong><br>
+                                <small th:text="${'Логин: ' + link.parent_login}" style="color:var(--muted);"></small>
+                            </td>
+                            <td th:text="${link.student_name}"></td>
+                            <td>
+                                <form th:action="@{/class-teacher/parents/revoke}" method="post" style="margin:0;">
+                                    <input type="hidden" name="parentId" th:value="${link.parent_id}">
+                                    <input type="hidden" name="studentId" th:value="${link.student_id}">
+                                    <button type="submit" class="button" style="background:var(--danger);padding:8px 16px;font-size:12px;"
+                                            onclick="return confirm('Отозвать связь родителя с учеником?')">
+                                        Отозвать связь
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <footer>EduJournal <span>Классный руководитель</span></footer>
+</main>
+</body>
+</html>

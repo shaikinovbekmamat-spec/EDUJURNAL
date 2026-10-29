@@ -1,35 +1,43 @@
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Кабинет ученика — EduJurnal</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6fa; margin: 0; padding: 40px 20px; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        h1 { color: #1a1a2e; margin-top: 0; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
-        .info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667eea; }
-        .info p { margin: 5px 0; }
-        .actions { display: flex; gap: 15px; }
-        .btn { display: inline-block; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; color: #fff; background: #667eea; transition: 0.3s; }
-        .btn:hover { background: #5a6fd6; }
-        .btn-outline { background: transparent; color: #667eea; border: 2px solid #667eea; }
-        .btn-outline:hover { background: #667eea; color: #fff; }
-    </style>
-</head>
-<body>
-<div class="container">
-    <h1>Кабинет ученика</h1>
-    <div class="info">
-        <p>Вы вошли как: <strong th:text="${currentLogin}"></strong></p>
-        <p>Ваша роль: <strong>STUDENT</strong></p>
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Главная ученика — EduJournal</title><link rel="stylesheet" href="/css/dashboard.css"><link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}">
+<a class="skip-link" href="#main">К содержимому</a>
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace">
+    <header class="page-header"><div><h1 th:text="${'Добрый день, ' + dashboard.name}">Добрый день</h1><p class="subtitle"><span class="date" th:text="${dashboard.date}"></span> · <span th:text="${dashboard.className}"></span> · <span th:text="${dashboard.period}"></span></p></div><span class="school" th:text="${dashboard.school}"></span></header>
+    <section class="hero" aria-labelledby="next-title">
+        <div class="hero-copy"><p class="eyebrow" th:text="${dashboard.nextLabel}"></p><h2 id="next-title" th:text="${dashboard.next != null ? dashboard.next.subject + ' · ' + dashboard.next.time() : 'Всё для учёбы — в одном месте'}"></h2><p th:text="${dashboard.next != null ? 'Каб. ' + dashboard.next.room + ' · ' + dashboard.next.teacher : 'Ближайших уроков сегодня нет. Посмотрите оценки и расписание.'}"></p></div>
+        <a class="button button-white" href="/schedule">Открыть расписание <span aria-hidden="true">↗</span></a>
+    </section>
+    <div class="stats">
+        <section class="card stat"><span class="stat-icon blue" aria-hidden="true">↗</span><p>Средний балл</p><strong class="stat-value" th:text="${dashboard.average}">—</strong><small th:text="${dashboard.subjectCount > 0 ? 'по предметам: ' + dashboard.subjectCount : 'пока нет оценок'}"></small></section>
+        <section class="card stat" id="attendance"><span class="stat-icon green" aria-hidden="true">✓</span><p>Посещаемость</p><strong class="stat-value">—</strong><small>Учёт пока не подключён</small></section>
+        <section class="card stat"><span class="stat-icon amber" aria-hidden="true">▤</span><p>ДЗ к сдаче</p><strong class="stat-value">—</strong><small>Задания пока недоступны</small></section>
+        <section class="card stat"><span class="stat-icon blue" aria-hidden="true">◉</span><p>Новые объявления</p><strong class="stat-value">—</strong><small>Раздел пока не подключён</small></section>
     </div>
-    <p>Ваши оценки по предметам, четвертям и учебным годам доступны в журнале.</p>
-    <div class="actions">
-        <a href="/journal" class="btn">Мои оценки</a>
-        <a href="/schedule" class="btn">Расписание школы</a>
-        <form th:action="@{/logout}" method="post"><button type="submit" class="btn btn-outline">Выйти из системы</button></form>
+    <div class="content-grid">
+        <section class="card progress" id="progress">
+            <div class="card-header"><div><h2>Динамика среднего балла</h2><p class="muted">Среднее за день · <span th:text="${dashboard.period}"></span></p></div><a class="text-link" href="/journal">Все оценки ↗</a></div>
+            <p class="legend"><span></span>Ваш балл <small>Последние 7 дней с оценками</small></p>
+            <div class="chart" th:if="${!dashboard.points.isEmpty()}" role="img" aria-label="Средний балл по датам. Значения подписаны над столбцами.">
+                <div class="chart-grid" aria-hidden="true"><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span><span>0</span></div>
+                <div class="bars"><div class="bar-column" th:each="point : ${dashboard.points}"><div class="bar" th:style="${'height:' + point.height + '%'}"><strong th:text="${point.average}"></strong></div><small th:text="${point.label}"></small></div></div>
+            </div>
+            <div class="empty-state chart-empty" th:if="${dashboard.points.isEmpty()}"><span class="empty-symbol" aria-hidden="true">↗</span><h3>Здесь появится ваш прогресс</h3><p>После первых оценок покажем, как меняется средний балл.</p><a class="button button-secondary" href="/journal">Открыть журнал</a></div>
+        </section>
+        <section class="card recent"><div class="card-header"><h2>Последние оценки</h2><a class="text-link" href="/journal">Все ↗</a></div>
+            <div class="grade-row" th:each="grade : ${dashboard.grades}"><div><strong th:text="${grade.subject}"></strong><small th:text="${#temporals.format(grade.date,'dd.MM.yyyy')}"></small></div><span class="grade" th:classappend="${'grade-' + grade.grade}" th:text="${grade.grade}" th:aria-label="${'Оценка ' + grade.grade}"></span></div>
+            <div class="empty-state" th:if="${dashboard.grades.isEmpty()}"><span class="empty-symbol" aria-hidden="true">☆</span><h3>Оценок пока нет</h3><p>Сохранённые учителем оценки появятся здесь.</p></div>
+        </section>
+        <section class="card today"><div class="card-header"><div><h2>Расписание на сегодня</h2><p class="muted" th:text="${dashboard.date}"></p></div><a class="text-link" href="/schedule">Расписание школы ↗</a></div>
+            <div class="lesson-row" th:each="lesson, row : ${dashboard.lessons}" th:classappend="${lesson == dashboard.next ? 'current-lesson' : ''}"><span class="lesson-number" th:text="${row.count}"></span><div class="lesson-time"><strong th:text="${lesson.time()}"></strong><small th:text="${lesson.endTime()}"></small></div><div class="lesson-subject"><strong th:text="${lesson.subject}"></strong><small th:text="${lesson.teacher}"></small></div><span class="room" th:text="${'Каб. ' + lesson.room}"></span></div>
+            <div class="empty-state" th:if="${dashboard.lessons.isEmpty()}"><span class="empty-symbol" aria-hidden="true">▦</span><h3>На сегодня уроков нет</h3><p th:text="${dashboard.className == 'Класс не назначен' ? 'Обратитесь в школу, чтобы вам назначили класс.' : 'Проверьте расписание на другие дни.'}"></p></div>
+        </section>
+        <section class="card" id="homework"><div class="card-header"><h2>Домашние задания</h2><span class="status">Не подключено</span></div><div class="empty-state"><span class="empty-symbol" aria-hidden="true">▤</span><h3>Задания будут здесь</h3><p>После подключения раздела здесь появятся сроки сдачи и задания по предметам.</p></div></section>
+        <section class="card announcements" id="announcements"><div class="card-header"><h2>Объявления</h2><span class="status">Не подключено</span></div><p class="muted">Здесь будут сообщения школы и классного руководителя.</p></section>
     </div>
-</div>
+    <footer>EduJournal <span>Ваш школьный день — на одной странице</span></footer>
+</main>
 </body>
 </html>

@@ -1,6 +1,7 @@
 package com.example.edujurnal.security;
 
 
+import com.example.edujurnal.service.AcademicService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,6 +15,12 @@ import java.io.IOException;
 @Component
 public class CustomAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
+    private final AcademicService academicService;
+
+    public CustomAuthenticationSuccessHandler(AcademicService academicService) {
+        this.academicService = academicService;
+    }
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
@@ -23,7 +30,16 @@ public class CustomAuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             String role = authority.getAuthority();
             if ("ROLE_OWNER".equals(role)) { targetUrl = "/owner/dashboard"; break; }
             if ("ROLE_DIRECTOR".equals(role)) { targetUrl = "/director/dashboard"; break; }
-            if ("ROLE_TEACHER".equals(role)) { targetUrl = "/teacher/dashboard"; break; }
+            if ("ROLE_TEACHER".equals(role)) {
+                // Проверить, является ли учитель классным руководителем
+                var managedClass = academicService.getManagedClass(authentication);
+                if (managedClass != null) {
+                    targetUrl = "/class-teacher/dashboard";
+                } else {
+                    targetUrl = "/teacher/dashboard";
+                }
+                break;
+            }
             if ("ROLE_PARENT".equals(role)) { targetUrl = "/parent/dashboard"; break; }
         }
 

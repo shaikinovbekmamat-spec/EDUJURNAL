@@ -311,8 +311,13 @@ class ScheduleTests {
         try (var client = loggedIn(login)) {
             var page = get(client, "/schedule?date=" + DATE);
             assertThat(page.statusCode()).isEqualTo(200);
-            assertThat(page.body()).contains("Школа тестов", "7А класс")
-                    .doesNotContain("+ Добавить", "Другая школа", "9В класс");
+            if (login.equals("parent_test")) {
+                assertThat(page.body()).contains("Подтверждённых связей с детьми пока нет")
+                        .doesNotContain("7А класс", "9В класс");
+            } else {
+                assertThat(page.body()).contains("Школа тестов", "7А класс")
+                        .doesNotContain("+ Добавить", "Другая школа", "9В класс");
+            }
             String dashboard = "/" + login.replace("_test", "") + "/dashboard";
             var account = get(client, dashboard);
             assertThat(account.statusCode()).isEqualTo(200);

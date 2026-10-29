@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход - EduJurnal</title>
+    <title>Вход - EduJournal</title>
     <style>
         * {
             margin: 0;
@@ -11,29 +11,48 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --page:#f7f8fa;
+            --surface:#ffffff;
+            --subtle:#f1f3f6;
+            --border:#e5e8ee;
+            --strong:#cbd1db;
+            --text:#111827;
+            --secondary:#4b5563;
+            --muted:#7b8494;
+            --brand:#2f5bea;
+            --brand-soft:#eaf0ff;
+            --success:#15803d;
+            --success-soft:#e8f6ee;
+            --warning:#b45309;
+            --warning-soft:#fdf3e2;
+            --danger:#b91c1c;
+            --danger-soft:#fdecec;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            /* Более мягкий и современный градиент */
-            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            color: var(--text);
         }
 
         .login-container {
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--surface);
             backdrop-filter: blur(10px);
             border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+            box-shadow: 0 4px 24px rgba(47, 91, 234, 0.08);
             max-width: 420px;
             width: 100%;
             padding: 40px;
             position: relative;
+            border: 1px solid var(--border);
         }
 
-        /* Переключатель языка */
         .lang-switch {
             position: absolute;
             top: 20px;
@@ -41,17 +60,17 @@
             font-size: 13px;
             display: flex;
             gap: 8px;
-            color: #666;
+            color: var(--muted);
         }
 
         .lang-switch a {
-            color: #667eea;
+            color: var(--brand);
             text-decoration: none;
             font-weight: 600;
         }
 
         .lang-switch a.active {
-            color: #333;
+            color: var(--text);
             text-decoration: none;
             cursor: default;
         }
@@ -66,15 +85,15 @@
         }
 
         .login-header h1 {
-            color: #1a1a2e;
+            color: var(--text);
             font-size: 32px;
             margin-bottom: 8px;
             font-weight: 700;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.6px;
         }
 
         .login-header p {
-            color: #666;
+            color: var(--muted);
             font-size: 14px;
         }
 
@@ -84,52 +103,54 @@
 
         .form-group label {
             display: block;
-            color: #333;
+            color: var(--text);
             font-weight: 600;
             margin-bottom: 8px;
             font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         .form-group input {
             width: 100%;
-            padding: 14px 16px;
-            border: 2px solid #e1e8ed;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
             border-radius: 10px;
             font-size: 15px;
-            background-color: #f8fafc;
-            transition: all 0.3s ease;
+            background-color: var(--surface);
+            transition: all 0.2s ease;
+            color: var(--text);
+            font-family: inherit;
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            background-color: #fff;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: var(--brand);
+            background-color: var(--surface);
+            box-shadow: 0 0 0 3px var(--brand-soft);
         }
 
         .form-group input::placeholder {
-            color: #a0aec0;
+            color: var(--muted);
         }
 
         .btn-login {
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 14px;
+            background: var(--brand);
             color: white;
             border: none;
             border-radius: 10px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.2s;
             margin-top: 8px;
+            font-family: inherit;
         }
 
         .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            background: #2347c9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(47, 91, 234, 0.25);
         }
 
         .btn-login:active {
@@ -147,15 +168,51 @@
         }
 
         .alert-error {
-            background-color: #fee2e2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
+            background-color: var(--danger-soft);
+            color: var(--danger);
+            border: 1px solid var(--danger);
         }
 
         .alert-success {
-            background-color: #dcfce7;
-            color: #16a34a;
-            border: 1px solid #bbf7d0;
+            background-color: var(--success-soft);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .test-credentials {
+            margin-top: 32px;
+            padding: 20px;
+            background: var(--subtle);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .test-credentials h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .test-credentials ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .test-credentials li {
+            padding: 6px 0;
+            font-size: 13px;
+            color: var(--secondary);
+        }
+
+        .test-credentials li span {
+            color: var(--muted);
+        }
+
+        .test-credentials li strong {
+            color: var(--brand);
+            font-weight: 600;
         }
 
     </style>
@@ -163,14 +220,13 @@
 <body>
 <div class="login-container">
 
-    <!-- Переключатель языка (НФР 01) -->
     <div class="lang-switch">
         <a href="#" class="active">RU</a> |
         <a href="#">KG</a>
     </div>
 
     <div class="login-header">
-        <h1>EduJurnal</h1>
+        <h1>EduJournal</h1>
         <p>Электронный журнал и дневник</p>
     </div>
 
@@ -186,7 +242,6 @@
 
     <form th:action="@{/perform-login}" method="post">
         <div class="form-group">
-            <!-- ВАЖНО: name="login" и label изменены -->
             <label for="login">Логин</label>
             <input type="text"
                    id="login"
@@ -217,7 +272,7 @@
             <li><span>Учитель:</span> <strong>teacher1</strong></li>
             <li><span>Ученик:</span> <strong>student1</strong></li>
             <li><span>Родитель:</span> <strong>parent1</strong></li>
-            <li style="margin-top: 8px; border-top: 1px solid #cbd5e1; padding-top: 8px;">
+            <li style="margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px;">
                 <span>Пароль для всех:</span> <strong>password123</strong>
             </li>
         </ul>

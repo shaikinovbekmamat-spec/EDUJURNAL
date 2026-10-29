@@ -5,13 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${lessonId == null ? 'Новый урок — EduJournal' : 'Изменение урока — EduJournal'}"></title>
     <link rel="stylesheet" th:href="@{/schedule.css}">
-</head>
-<body>
-<header>
-    <a th:href="@{/schedule}" class="brand">EduJournal</a>
-    <span th:text="${school.name}"></span>
-</header>
+<link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}"><aside th:replace="~{academic/layout :: sidebar}"></aside>
+
 <main class="form-page">
+    <p class="hint" th:text="${school.name}"></p>
     <a th:href="@{/schedule(date=${form.date},classId=${form.classId})}">← К расписанию класса</a>
 
     <!-- ЗАЩИТА: Показываем форму только директору -->

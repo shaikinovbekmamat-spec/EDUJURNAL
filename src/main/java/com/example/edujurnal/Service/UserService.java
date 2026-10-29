@@ -54,4 +54,22 @@ public class UserService implements UserDetailsService {
     public User findByLogin(String login) {
         return userRepository.findByLogin(login).orElse(null);
     }
+
+    @Transactional
+    public void changePassword(String login, String currentPassword, String newPassword, String confirmation) {
+        User user = userRepository.findByLogin(login)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
+        if (!user.isEnabled()) throw new DisabledException("Аккаунт заблокирован");
+        if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword()))
+            throw new IllegalArgumentException("Текущий пароль указан неверно.");
+        if (newPassword == null || newPassword.length() < 8 ||
+                newPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
+            throw new IllegalArgumentException("Пароль должен содержать минимум 8 символов и не более 72 байт UTF-8.");
+        if (!newPassword.equals(confirmation))
+            throw new IllegalArgumentException("Подтверждение пароля не совпадает.");
+        if (passwordEncoder.matches(newPassword, user.getPassword()))
+            throw new IllegalArgumentException("Новый пароль должен отличаться от текущего.");
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
 }

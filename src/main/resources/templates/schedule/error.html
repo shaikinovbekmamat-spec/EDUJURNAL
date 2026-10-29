@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Действие недоступно — EduJournal</title><link rel="stylesheet" th:href="@{/schedule.css}"></head>
-<body><main class="form-page"><h1>Не удалось выполнить действие</h1><p class="errors" th:text="${message}"></p>
+    <title>Действие недоступно — EduJournal</title><link rel="stylesheet" th:href="@{/schedule.css}"><link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}"><aside th:replace="~{academic/layout :: sidebar}"></aside><main class="form-page"><h1>Не удалось выполнить действие</h1><p class="errors" th:text="${message}"></p>
     <p><a href="/journal">Журнал</a> · <a href="/management">Управление школой</a></p>
     <a th:href="@{/schedule}">Вернуться к расписанию</a></main></body>
 </html>

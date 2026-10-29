@@ -1,16 +1,13 @@
-<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><body>
-<aside th:fragment="sidebar" class="sidebar">
-    <a class="logo" href="/journal"><b>E</b> EduJournal</a>
+﻿<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><body>
+<aside th:fragment="sidebar" th:if="${navigation != null}" class="app-sidebar">
+    <a class="app-brand" th:href="${navigation.home}"><span class="app-brand-mark">E</span>EduJournal</a>
     <nav aria-label="Основная навигация">
-        <a th:if="${user.role.name() == 'TEACHER'}" href="/journal/today">✎ Выставить оценки</a>
-        <a th:href="@{/{role}/dashboard(role=${#strings.toLowerCase(user.role.name())})}">⌂ Главная</a>
-        <a th:if="${user.role.name() != 'OWNER'}" href="/journal">☆ Журнал и оценки</a>
-        <a href="/schedule">▦ Расписание</a>
-        <a th:if="${user.role.name() == 'TEACHER'}" href="/journal?family=true">♡ Мои дети</a>
-        <a th:if="${user.role.name() == 'DIRECTOR' or user.role.name() == 'OWNER'}" href="/management">⚙ Управление школой</a>
+        <a th:each="item : ${navigation.items}" th:href="${item.href}" th:attr="aria-current=${item.active ? 'page' : null}"><span aria-hidden="true" th:text="${item.icon}"></span><span th:text="${item.label}"></span></a>
     </nav>
-    <div class="profile"><strong th:text="${user.fullName ?: user.login}"></strong><small th:text="${user.login}"></small>
-        <form th:action="@{/logout}" method="post"><button class="text-button" type="submit">Выйти</button></form>
+    <div class="app-sidebar-bottom" id="profile">
+        <div class="app-profile"><span class="app-avatar" aria-hidden="true" th:text="${#strings.substring(navigation.name,0,1)}"></span><div><strong th:text="${navigation.name}"></strong><small th:text="${navigation.roleLabel}"></small></div></div>
+        <small class="app-login" th:text="|Логин: ${navigation.login}|"></small>
+        <form th:action="@{/logout}" method="post"><button class="app-logout" type="submit">Выйти из системы <span aria-hidden="true">↗</span></button></form>
     </div>
 </aside>
 </body></html>

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Управление учетными записями — EduJournal</title>
+    <link rel="stylesheet" href="/css/dashboard.css">
+<link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}">
+<a class="skip-link" href="#main">К содержимому</a>
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace">
+    <header class="page-header">
+        <div>
+            <h1>Управление учетными записями</h1>
+            <p class="subtitle" th:if="${managedClass != null}" th:text="${'Класс: ' + managedClass.class_name}">Класс</p>
+        </div>
+    </header>
+
+    <div th:if="${success}" class="card" style="background:var(--success-soft);color:var(--success);margin-bottom:24px;">
+        <p style="margin:0;" th:text="${success}"></p>
+    </div>
+
+    <div th:if="${error}" class="card" style="background:var(--danger-soft);color:var(--danger);margin-bottom:24px;">
+        <p style="margin:0;" th:text="${error}"></p>
+    </div>
+
+    <div th:if="${managedClass == null}" class="card">
+        <div class="empty-state">
+            <span class="empty-symbol" aria-hidden="true">⚙</span>
+            <h3>Вы не назначены классным руководителем</h3>
+            <p>Обратитесь к директору школы для назначения на класс.</p>
+        </div>
+    </div>
+
+    <div th:if="${managedClass != null}">
+        <!-- Форма создания учетной записи -->
+        <section class="card">
+            <h2>Создать учетную запись</h2>
+            <p class="muted" style="margin-bottom:20px;">
+                Вы можете создавать учетные записи для <strong>учеников вашего класса</strong> и <strong>родителей</strong>.
+                Выдайте пользователю логин и пароль лично. Пароль хранится в защищенном виде.
+            </p>
+
+            <form th:action="@{/class-teacher/accounts/create}" method="post"
+                  style="display:grid;gap:20px;max-width:800px;">
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <label>
+                        ФИО <span style="color:var(--danger);">*</span>
+                        <input name="fullName" type="text" maxlength="150"
+                               placeholder="Иванов Иван Иванович" required>
+                    </label>
+
+                    <label>
+                        Роль <span style="color:var(--danger);">*</span>
+                        <select name="role" required>
+                            <option value="">Выберите роль</option>
+                            <option value="STUDENT">Ученик</option>
+                            <option value="PARENT">Родитель</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <label>
+                        Номер-логин <span style="color:var(--danger);">*</span>
+                        <input name="login" type="text" pattern="[0-9]{1,50}"
+                               inputmode="numeric" maxlength="50"
+                               placeholder="Только цифры, например: 123456" required>
+                        <small style="color:var(--muted);display:block;margin-top:6px;">
+                            Должен быть уникальным. Только цифры.
+                        </small>
+                    </label>
+
+                    <label>
+                        Пароль <span style="color:var(--danger);">*</span>
+                        <input name="password" type="password"
+                               minlength="8" maxlength="72"
+                               placeholder="Минимум 8 символов" required>
+                        <small style="color:var(--muted);display:block;margin-top:6px;">
+                            Минимум 8 символов
+                        </small>
+                    </label>
+                </div>
+
+                <div style="padding:16px;background:var(--subtle);border-radius:10px;font-size:13px;color:var(--secondary);">
+                    <strong>Важно:</strong>
+                    <ul style="margin:8px 0 0;padding-left:20px;">
+                        <li>Ученик автоматически зачисляется в ваш класс</li>
+                        <li>Родитель может быть привязан к нескольким детям</li>
+                        <li>Логин и пароль нужно передать пользователю лично</li>
+                    </ul>
+                </div>
+
+                <button type="submit" style="justify-self:start;padding:12px 24px;">
+                    Создать учетную запись
+                </button>
+            </form>
+        </section>
+
+        <section class="card" id="parent-links">
+            <h2>Связать родителя с учеником</h2>
+            <p class="muted">Введите логин существующего родителя или учителя и выберите ученика вашего класса.</p>
+            <form th:action="@{/class-teacher/parents/link}" method="post" class="parent-link-fields">
+                <input type="hidden" name="returnToAccounts" value="true">
+                <label>Логин родителя или учителя<input name="parentLogin" maxlength="50" required></label>
+                <label>Ученик вашего класса<select name="studentId" required><option value="">Выберите ученика</option><option th:each="s : ${students}" th:value="${s.id}" th:text="|${s.full_name} · ${s.login}|"></option></select></label>
+                <button type="submit" th:disabled="${#lists.isEmpty(students)}">Подтвердить связь</button>
+            </form>
+            <p th:if="${#lists.isEmpty(students)}" class="muted">Сначала создайте учётную запись ученика.</p>
+            <h3>Подтверждённые связи</h3>
+            <p th:if="${#lists.isEmpty(links)}" class="muted">Связей пока нет.</p>
+            <div class="table-wrap" th:unless="${#lists.isEmpty(links)}"><table><thead><tr><th>Родитель</th><th>Ученик</th><th>Действие</th></tr></thead><tbody>
+                <tr th:each="link : ${links}"><td><strong th:text="${link.parent_name}"></strong><br><small th:text="${link.parent_login}"></small></td><td th:text="${link.student_name}"></td><td>
+                    <form th:action="@{/class-teacher/parents/revoke}" method="post" onsubmit="return confirm('Отозвать связь родителя с учеником?')"><input type="hidden" name="returnToAccounts" value="true"><input type="hidden" name="parentId" th:value="${link.parent_id}"><input type="hidden" name="studentId" th:value="${link.student_id}"><button type="submit">Отозвать связь</button></form>
+                </td></tr>
+            </tbody></table></div>
+        </section>
+
+        <!-- Список учеников класса -->
+        <section class="card">
+            <div class="card-header">
+                <h2>Ученики класса</h2>
+                <span th:text="${#lists.size(students) + ' учеников'}" style="color:var(--muted);"></span>
+            </div>
+
+            <div th:if="${#lists.isEmpty(students)}" class="empty-state">
+                <span class="empty-symbol" aria-hidden="true">○</span>
+                <h3>В классе пока нет учеников</h3>
+                <p>Создайте учетные записи для учеников вашего класса.</p>
+            </div>
+
+            <div th:if="${!#lists.isEmpty(students)}" class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ФИО</th>
+                            <th>Логин</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="student : ${students}">
+                            <td th:text="${student.full_name}"></td>
+                            <td>
+                                <code style="background:var(--subtle);padding:4px 8px;border-radius:6px;font-size:13px;"
+                                      th:text="${student.login}"></code>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Список родителей -->
+        <section class="card">
+            <div class="card-header">
+                <h2>Родители учеников класса</h2>
+                <span th:text="${#lists.size(parents) + ' родителей'}" style="color:var(--muted);"></span>
+            </div>
+
+            <div th:if="${#lists.isEmpty(parents)}" class="empty-state">
+                <span class="empty-symbol" aria-hidden="true">○</span>
+                <h3>Родителей пока нет</h3>
+                <p>Создайте учётную запись родителя и подтвердите связь с учеником в форме выше.</p>
+            </div>
+
+            <div th:if="${!#lists.isEmpty(parents)}" class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ФИО</th>
+                            <th>Логин</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="parent : ${parents}">
+                            <td th:text="${parent.full_name}"></td>
+                            <td>
+                                <code style="background:var(--subtle);padding:4px 8px;border-radius:6px;font-size:13px;"
+                                      th:text="${parent.login}"></code>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <footer>EduJournal <span>Классный руководитель</span></footer>
+</main>
+</body>
+</html>

@@ -9,3 +9,22 @@ function updateProfileFields() {
     });
 }
 if (role) { role.addEventListener('change', updateProfileFields); updateProfileFields(); }
+
+const managementLinks = document.querySelectorAll('.management-header .tabs a');
+function updateManagementNavigation() {
+    const selected = window.location.hash || managementLinks[0]?.hash;
+    managementLinks.forEach(link => {
+        const active = link.hash === selected;
+        link.classList.toggle('active', active);
+        if (active) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+    });
+}
+window.addEventListener('hashchange', updateManagementNavigation);
+updateManagementNavigation();
+
+document.querySelectorAll('form[data-confirm]').forEach(form => {
+    form.addEventListener('submit', event => {
+        if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+    });
+});

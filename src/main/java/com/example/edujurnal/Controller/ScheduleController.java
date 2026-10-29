@@ -35,17 +35,39 @@ public class ScheduleController {
     private final ScheduleService service;
     private final ScheduleCatalog catalog;
     private final ScheduleAccessService access;
+    private final com.example.edujurnal.service.JournalService journal;
 
-    public ScheduleController(ScheduleService service, ScheduleCatalog catalog, ScheduleAccessService access) {
+    public ScheduleController(ScheduleService service, ScheduleCatalog catalog, ScheduleAccessService access, com.example.edujurnal.service.JournalService journal) {
         this.service = service;
         this.catalog = catalog;
         this.access = access;
+        this.journal = journal;
     }
 
     @ModelAttribute
     public void schoolContext(Authentication authentication,
-                              @RequestParam(required = false) Long schoolId, Model model) {
+                              @RequestParam(required = false) Long schoolId,
+                              @RequestParam(defaultValue = "false") boolean family,
+                              @RequestParam(required = false) Long childId, Model model) {
         var user = access.currentUser(authentication);
+        family = user.getRole() == Role.PARENT || (user.getRole() == Role.TEACHER && family);
+        model.addAttribute("family", family);
+        if (family) {
+            var children = journal.children(user);
+            var child = access.familyChild(user, childId, children.stream().map(c -> c.id()).toList());
+            model.addAttribute("children", children);
+            model.addAttribute("childId", child == null ? null : child.getId());
+            model.addAttribute("familyChild", child);
+            var school = child == null ? null : child.getSchool();
+            if (schoolId != null && (school == null || !schoolId.equals(school.getId())))
+                throw new org.springframework.security.access.AccessDeniedException("Нет доступа к этой школе.");
+            model.addAttribute("school", school);
+            model.addAttribute("canEdit", false);
+            model.addAttribute("owner", false);
+            model.addAttribute("teacher", false);
+            model.addAttribute("student", true);
+            return;
+        }
         var school = access.school(user, schoolId);
         model.addAttribute("school", school);
         model.addAttribute("canEdit", access.canEdit(user));
@@ -72,11 +94,15 @@ public class ScheduleController {
                        LocalDate date, @RequestParam(required = false) Long classId,
                        @RequestParam(defaultValue = "false") boolean onlyMine,
                        Authentication authentication, Model model) {
+        boolean family = Boolean.TRUE.equals(model.getAttribute("family"));
+        if (family && model.getAttribute("familyChild") == null) return "schedule/family-empty";
         if (model.getAttribute("school") == null) return "schedule/select-school";
         var user = access.currentUser(authentication);
-        access.school(user, schoolId(model));
-        Long visibleClass = access.visibleClass(user, classId);
-        Long visibleTeacher = access.visibleTeacher(user, onlyMine);
+        if (!family) access.school(user, schoolId(model));
+        var subject = family ? (com.example.edujurnal.entity.User) model.getAttribute("familyChild") : user;
+        Long visibleClass = access.visibleClass(subject, classId);
+        if (family && onlyMine) throw new org.springframework.security.access.AccessDeniedException("Фильтр преподавателя недоступен в разделе детей.");
+        Long visibleTeacher = family ? null : access.visibleTeacher(user, onlyMine);
         LocalDate selected = date == null ? service.today() : date;
         AcademicTerm term = AcademicTerm.containing(selected);
         var references = catalog.forSchool(schoolId(model));

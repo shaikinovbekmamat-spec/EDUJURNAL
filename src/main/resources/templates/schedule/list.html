@@ -1,21 +1,30 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Расписание на полугодие — EduJournal</title><link rel="stylesheet" th:href="@{/schedule.css}">
-</head>
-<body>
-<header><a th:href="@{/schedule}" class="brand">EduJournal</a><span th:text="${school.name}"></span></header>
+<link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}"><aside th:replace="~{academic/layout :: sidebar}"></aside>
+
 <main class="week-page">
-    <nav><a th:unless="${owner}" href="/journal">Журнал и оценки</a> <a th:if="${canEdit or owner}" href="/management">Управление школой</a></nav>
+
     <p class="eyebrow">Учебный процесс</p>
+    <p class="hint" th:text="${school.name}"></p>
     <div class="heading">
         <div><h1>Расписание на полугодие</h1><p th:text="|${term.name} · ${#temporals.format(term.start, 'dd.MM.yyyy')} — ${#temporals.format(term.end, 'dd.MM.yyyy')}|"></p></div>
         <a th:if="${canEdit and !newDate.isAfter(term.end)}" class="button" th:href="@{/schedule/new(date=${newDate},classId=${classId},schoolId=${school.id})}">+ Добавить урок</a>
     </div>
     <div class="success" role="status" th:if="${success}" th:text="${success}"></div>
+    <form th:if="${family}" class="filters panel" method="get" th:action="@{/schedule}">
+        <input type="hidden" name="family" value="true">
+        <label>Ребёнок <select name="childId"><option th:each="child : ${children}" th:value="${child.id}" th:selected="${childId == child.id}" th:text="|${child.name} · ${child.school}|"></option></select></label>
+        <button type="submit">Выбрать ребёнка</button>
+        <a th:href="@{/journal(family=true,childId=${childId})}">Оценки ребёнка</a>
+    </form>
     <form class="filters panel week-filters" method="get" th:action="@{/schedule}">
         <input type="hidden" name="schoolId" th:value="${school.id}">
+        <input th:if="${family}" type="hidden" name="family" value="true">
+        <input th:if="${family}" type="hidden" name="childId" th:value="${childId}">
         <label for="term">Полугодие</label>
         <select name="date" id="term">
             <option th:each="period : ${terms}" th:value="${period.start}" th:selected="${period.start.equals(term.start)}"

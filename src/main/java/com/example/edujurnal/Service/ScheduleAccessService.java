@@ -55,6 +55,18 @@ public class ScheduleAccessService {
         return user.getRole() == Role.DIRECTOR;
     }
 
+    public User familyChild(User user, Long childId, List<Long> allowedIds) {
+        if (user.getRole() != Role.PARENT && user.getRole() != Role.TEACHER)
+            throw new AccessDeniedException("Семейный раздел недоступен.");
+        Long selected = childId == null && !allowedIds.isEmpty() ? allowedIds.getFirst() : childId;
+        if (selected == null) return null;
+        if (!allowedIds.contains(selected)) throw new AccessDeniedException("Нет подтверждённой связи с этим ребёнком.");
+        User child = users.findById(selected).filter(u -> u.getRole() == Role.STUDENT)
+                .orElseThrow(() -> new AccessDeniedException("Ребёнок не найден."));
+        if (child.getSchool() != null) child.getSchool().getName();
+        return child;
+    }
+
     public Long visibleClass(User user, Long requestedClassId) {
         if (user.getRole() != Role.STUDENT) return requestedClassId;
         if (user.getStudentClassId() == null) {

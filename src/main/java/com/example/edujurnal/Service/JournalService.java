@@ -120,4 +120,96 @@ public class JournalService {
         }
         jdbc.update("insert into journal_grade(lesson_id,student_id,teacher_user_id,quarter_id,grade_value) values(?,?,?,?,?)",lessonId,studentId,user.getId(),quarters.getFirst(),value);
     }
+
+    // Методы для классного руководителя
+    public Double getClassAverageGrade(Object classIdObj) {
+        long classId = ((Number) classIdObj).longValue();
+        return jdbc.queryForObject(
+            "select avg(grade_value::numeric) from journal_grade g " +
+            "join users u on u.id = g.student_id " +
+            "where u.student_class_id = ?",
+            Double.class, classId
+        );
+    }
+
+    public Map<String, Object> getClassJournal(long classId, Long quarterId) {
+        Map<String, Object> result = new HashMap<>();
+
+        // Получить всех учеников класса
+        List<Map<String, Object>> students = jdbc.queryForList(
+            "select id, full_name, login from users " +
+            "where student_class_id = ? and role = 'STUDENT' " +
+            "order by full_name",
+            classId
+        );
+
+        // Получить все предметы, по которым есть уроки для этого класса
+        String subjectSql = "select distinct s.id, s.name from schedule_subject s " +
+            "join schedule_lesson l on l.subject_id = s.id " +
+            "where l.class_id = ? order by s.name";
+
+        List<Map<String, Object>> subjects = jdbc.queryForList(subjectSql, classId);
+
+        // Получить оценки
+        String gradeSql = "select g.student_id, g.grade_value, s.id as subject_id, s.name as subject_name, " +
+            "l.lesson_date from journal_grade g " +
+            "join schedule_lesson l on l.id = g.lesson_id " +
+            "join schedule_subject s on s.id = l.subject_id " +
+            "join users u on u.id = g.student_id " +
+            "where u.student_class_id = ?";
+
+        List<Object> args = new ArrayList<>();
+        args.add(classId);
+
+        if (quarterId != null) {
+            gradeSql += " and g.quarter_id = ?";
+            args.add(quarterId);
+        }
+
+        gradeSql += " order by g.student_id, s.name";
+
+        List<Map<String, Object>> grades = jdbc.query(gradeSql, args.toArray(),
+            (rs, rowNum) -> {
+                Map<String, Object> row = new HashMap<>();
+                row.put("student_id", rs.getLong("student_id"));
+                row.put("grade_value", rs.getInt("grade_value"));
+                row.put("subject_id", rs.getLong("subject_id"));
+                row.put("subject_name", rs.getString("subject_name"));
+                row.put("lesson_date", rs.getDate("lesson_date"));
+                return row;
+            }
+        );
+
+        // Рассчитать средние баллы по предметам для каждого ученика
+        Map<Long, Map<Long, List<Integer>>> studentSubjectGrades = new HashMap<>();
+        for (Map<String, Object> grade : grades) {
+            long studentId = (Long) grade.get("student_id");
+            long subjectId = (Long) grade.get("subject_id");
+            int gradeValue = (Integer) grade.get("grade_value");
+
+            studentSubjectGrades
+                .computeIfAbsent(studentId, k -> new HashMap<>())
+                .computeIfAbsent(subjectId, k -> new ArrayList<>())
+                .add(gradeValue);
+        }
+
+        // Рассчитать средние баллы
+        Map<String, Double> averages = new HashMap<>();
+        for (Map.Entry<Long, Map<Long, List<Integer>>> studentEntry : studentSubjectGrades.entrySet()) {
+            long studentId = studentEntry.getKey();
+            for (Map.Entry<Long, List<Integer>> subjectEntry : studentEntry.getValue().entrySet()) {
+                long subjectId = subjectEntry.getKey();
+                List<Integer> gradesList = subjectEntry.getValue();
+                double avg = gradesList.stream().mapToInt(Integer::intValue).average().orElse(0.0);
+                averages.put(studentId + "_" + subjectId, avg);
+            }
+        }
+
+        result.put("students", students);
+        result.put("subjects", subjects);
+        result.put("grades", grades);
+        result.put("averages", averages);
+
+        return result;
+    }
 }

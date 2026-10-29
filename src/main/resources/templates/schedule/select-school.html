@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Расписание школ — EduJournal</title><link rel="stylesheet" th:href="@{/schedule.css}">
-</head>
-<body>
-<header><a th:href="@{/schedule}" class="brand">EduJournal</a><span>Кабинет владельца</span></header>
+<link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}"><aside th:replace="~{academic/layout :: sidebar}"></aside>
+
 <main class="form-page">
     <p><a href="/management">Управление аккаунтами директоров</a></p>
     <h1>Расписание школ</h1>
