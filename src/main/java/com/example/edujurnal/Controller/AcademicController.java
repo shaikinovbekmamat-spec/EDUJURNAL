@@ -17,8 +17,9 @@ public class AcademicController {
     private final AcademicService service;
     private final ScheduleAccessService access;
     private final ScheduleCatalog catalog;
-    public AcademicController(AcademicService service,ScheduleAccessService access,ScheduleCatalog catalog) {
-        this.service=service; this.access=access; this.catalog=catalog;
+    private final CurriculumService curriculum;
+    public AcademicController(AcademicService service,ScheduleAccessService access,ScheduleCatalog catalog, CurriculumService curriculum) {
+        this.service=service; this.access=access; this.catalog=catalog; this.curriculum=curriculum;
     }
     @GetMapping("/management")
     public String management(Authentication auth,@RequestParam(required=false) Long schoolId,Model model) {
@@ -33,6 +34,10 @@ public class AcademicController {
         model.addAttribute("school",access.school(user,school));
         model.addAttribute("director",user.getRole()==Role.DIRECTOR);
         model.addAttribute("catalog",catalog.forSchool(school));
+        model.addAttribute("classWorkloads",curriculum.summary(school));
+        model.addAttribute("teacherWorkloads",curriculum.teacherSummary(school));
+        model.addAttribute("classLimits",curriculum.classLimits(school));
+        model.addAttribute("teacherLimits",curriculum.teacherLimits(school));
         model.addAttribute("years",service.years(school));
         model.addAttribute("quarters",service.quarters(school));
         model.addAttribute("assignments",service.assignments(school));
@@ -43,6 +48,19 @@ public class AcademicController {
         model.addAttribute("eligibleClassTeachers",service.eligibleClassTeachers(auth,school));
         return "academic/management";
     }
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('DIRECTOR')")
+    @PostMapping("/management/workload-limits")
+    public String workloadLimit(Authentication auth, @RequestParam String type, @RequestParam long id,
+                                @RequestParam int weeklyLimit, RedirectAttributes flash) {
+        try {
+            curriculum.saveWeeklyLimit(service.managedSchool(auth, null), type, id, weeklyLimit);
+            flash.addFlashAttribute("success", "Недельный лимит сохранён.");
+        } catch (com.example.edujurnal.exception.ScheduleException ex) {
+            flash.addFlashAttribute("workloadError", String.join(" ", ex.getErrors()));
+        }
+        return "redirect:/management#workload";
+    }
+
     @PostMapping("/management/class-teachers")
     public String classTeacher(Authentication auth,@RequestParam long classId,
                                @RequestParam(required=false) Long teacherUserId,RedirectAttributes flash) {

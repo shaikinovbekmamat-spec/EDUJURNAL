@@ -68,7 +68,7 @@ public class LessonJournalService {
             select u.id,u.full_name,g.grade_value from schedule_lesson l
             join users u on u.school_id=l.school_id and u.role='STUDENT'
             left join journal_grade g on g.lesson_id=l.id and g.student_id=u.id
-            where l.id=? and (g.id is not null or (u.enabled=true and u.student_class_id=l.class_id
+            where l.id=? and (g.id is not null or exists(select 1 from attendance att where att.lesson_id=l.id and att.student_id=u.id) or (u.enabled=true and u.student_class_id=l.class_id
             and (l.subgroup_id is null or exists(select 1 from schedule_membership m
             where m.student_id=u.id and m.subgroup_id=l.subgroup_id and m.active_from<=l.lesson_date
             and (m.active_to is null or m.active_to>=l.lesson_date))))) order by u.full_name,u.id

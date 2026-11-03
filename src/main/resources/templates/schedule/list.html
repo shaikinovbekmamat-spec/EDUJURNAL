@@ -14,6 +14,7 @@
         <div><h1>Расписание на полугодие</h1><p th:text="|${term.name} · ${#temporals.format(term.start, 'dd.MM.yyyy')} — ${#temporals.format(term.end, 'dd.MM.yyyy')}|"></p></div>
         <a th:if="${canEdit and !newDate.isAfter(term.end)}" class="button" th:href="@{/schedule/new(date=${newDate},classId=${classId},schoolId=${school.id})}">+ Добавить урок</a>
     </div>
+    <p th:if="${canEdit}"><a class="button secondary" th:href="@{/schedule/generate}">Составить расписание школы</a></p>
     <div class="success" role="status" th:if="${success}" th:text="${success}"></div>
     <form th:if="${family}" class="filters panel" method="get" th:action="@{/schedule}">
         <input type="hidden" name="family" value="true">

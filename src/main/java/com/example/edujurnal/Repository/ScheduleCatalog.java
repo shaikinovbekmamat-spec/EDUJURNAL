@@ -64,7 +64,7 @@ public class ScheduleCatalog {
     }
 
     public boolean hasGrades(long lessonId) {
-        return jdbc.queryForObject("select count(*) from journal_grade where lesson_id=?", Long.class, lessonId) > 0;
+        return jdbc.queryForObject("select count(*) from journal_grade where lesson_id=?", Long.class, lessonId) > 0 || jdbc.queryForObject("select count(*) from attendance where lesson_id=?", Long.class, lessonId) > 0;
     }
 
     public void validate(long schoolId, LessonForm form) {

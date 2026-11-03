@@ -39,6 +39,8 @@ class ScheduleTests {
     LessonRepository repository;
     @Autowired JdbcTemplate jdbc;
     @Autowired ScheduleCatalog catalog;
+    @Autowired com.example.edujurnal.service.ScheduleGenerationService generation;
+    @Autowired com.example.edujurnal.service.CurriculumService curriculum;
     @Autowired com.example.edujurnal.service.UserService users;
     @Autowired com.example.edujurnal.repository.SchoolRepository schools;
     @LocalServerPort int port;
@@ -54,6 +56,11 @@ class ScheduleTests {
 
     @BeforeEach
     void clearLessons() {
+        jdbc.update("delete from schedule_curriculum");
+        jdbc.update("delete from schedule_class_weekly_limit");
+        jdbc.update("delete from schedule_teacher_weekly_limit");
+        jdbc.update("delete from schedule_planning_settings");
+        jdbc.update("delete from schedule_teacher_unavailable");
         repository.deleteAll();
         if (jdbc.queryForObject("select count(*) from schedule_school", Long.class) == 0) {
             new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
@@ -92,6 +99,340 @@ class ScheduleTests {
 
     private LessonForm standard() {
         return form(1, null, 1, 1, "09:00", "09:45");
+    }
+
+    private com.example.edujurnal.dto.GenerationForm generationInput(int count) {
+        var input = new com.example.edujurnal.dto.GenerationForm();
+        input.setStart(DATE);
+        input.setEnd(DATE.plusDays(11));
+        var load = input.getLoads().getFirst();
+        load.setClassId(1L);
+        load.setSubjectId(1L);
+        load.setTeacherId(1L);
+        load.setWeeklyCount(count);
+        return input;
+    }
+
+    @Test
+    void generatedScheduleChecksEveryDateAndSavesIdempotently() {
+        var blocker = form(2, null, 1, 1, "08:00", "08:45");
+        blocker.setDate(DATE.plusWeeks(1));
+        service.save(1, null, blocker);
+        var input = generationInput(10);
+        var second = new com.example.edujurnal.dto.GenerationForm.Load();
+        second.setClassId(2L);
+        second.setSubjectId(1L);
+        second.setTeacherId(1L);
+        second.setWeeklyCount(10);
+        input.getLoads().add(second);
+        var plan = generation.preview(1, input);
+        assertThat(repository.count()).isEqualTo(1);
+        assertThat(plan.entries()).hasSize(20);
+        assertThat(plan.entries()).noneMatch(f -> f.getDate().equals(DATE) && f.getLessonNumber() == 1);
+        assertThat(generation.save(1, plan)).isEqualTo(40);
+        assertThat(generation.save(1, plan)).isEqualTo(40);
+        assertThat(repository.count()).isEqualTo(41);
+        var validator = new com.example.edujurnal.service.ScheduleValidator(catalog);
+        repository.findAll().forEach(l -> assertThat(validator.checkConflicts(
+                LessonForm.from(l), l.getId(), service.forDate(1, l.getDate()))).isEmpty());
+    }
+
+    @Test
+    void generatedSaveRollsBackAllRowsWhenPreviewBecomesStale() {
+        var plan = generation.preview(1, generationInput(3));
+        var blocker = plan.entries().getLast().copy();
+        blocker.setDate(blocker.getDate().plusWeeks(1));
+        blocker.setRequestToken(UUID.randomUUID().toString());
+        service.save(1, null, blocker);
+        assertThatThrownBy(() -> generation.save(1, plan)).isInstanceOf(ScheduleException.class);
+        assertThat(repository.count()).isEqualTo(1);
+        assertThatThrownBy(() -> generation.save(2, plan)).hasMessageContaining("Нет доступа");
+    }
+
+    @Test
+    void generationRejectsImpossibleLoadInvalidTeacherAndForeignClass() {
+        var input = generationInput(31);
+        assertThatThrownBy(() -> generation.preview(1, input)).hasMessageContaining("от 1 до 30");
+        input.getLoads().getFirst().setWeeklyCount(1);
+        input.getLoads().getFirst().setSubjectId(3L);
+        assertThatThrownBy(() -> generation.preview(1, input)).hasMessageContaining("не назначен");
+        input.getLoads().getFirst().setClassId(20L);
+        assertThatThrownBy(() -> generation.preview(1, input)).hasMessageContaining("Класс не найден");
+        var past = generationInput(1);
+        past.setStart(DATE.minusDays(1));
+        assertThatThrownBy(() -> generation.preview(1, past)).hasMessageContaining("будущий период");
+        var crossTerm = generationInput(1);
+        crossTerm.setEnd(LocalDate.of(2031, 1, 10));
+        assertThatThrownBy(() -> generation.preview(1, crossTerm)).hasMessageContaining("одном учебном полугодии");
+        assertThat(repository.count()).isZero();
+    }
+
+    @Test
+    void generationReportsCapacityAndOccupiedPeriodWithoutWriting() {
+        jdbc.update("update schedule_class set student_count=40 where id=1");
+        try {
+            assertThatThrownBy(() -> generation.preview(1, generationInput(1))).hasMessageContaining("вместимости");
+        } finally {
+            jdbc.update("update schedule_class set student_count=0 where id=1");
+        }
+        var blocker = standard();
+        blocker.setStartTime(LocalTime.of(7, 0));
+        blocker.setEndTime(LocalTime.of(14, 0));
+        service.save(1, null, blocker);
+        var input = generationInput(1);
+        input.setEnd(DATE);
+        assertThatThrownBy(() -> generation.preview(1, input)).hasMessageContaining("нет свободного времени");
+        assertThat(repository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void generationHttpPreviewSaveValidationAndPermissions() throws Exception {
+        try (var client = loggedIn("director_test")) {
+            var page = get(client, "/schedule/generate");
+            assertThat(page.statusCode()).isEqualTo(200);
+            assertThat(page.body()).contains("Расписание всей школы", "План пока не заполнен").doesNotContain("loads[0].classId");
+            assertThat(get(client, "/management").body()).contains("Нагрузка классов и учителей", "Сохранить лимит класса", "Сохранить лимит учителя");
+            var classPage = get(client, "/management/curriculum?classId=1");
+            assertThat(classPage.statusCode()).isEqualTo(200);
+            assertThat(classPage.body()).contains("Часов в неделю", "Сохранить учебный план");
+            assertThat(post(client, "/management/curriculum?classId=1", "_csrf=" + csrf(classPage.body())
+                    + "&loads[0].subjectId=1&loads[0].teacherId=1&loads[0].weeklyCount=3").statusCode()).isEqualTo(302);
+            assertThat(post(client, "/management/copy", "_csrf=" + csrf(page.body())
+                    + "&sourceClassId=1&classId=2").statusCode()).isEqualTo(302);
+            assertThat(get(client, "/management").body()).contains("6 ч. в неделю", "3 ч. в неделю");
+            assertThat(curriculum.teacherSummary(1)).anyMatch(t -> t.id() == 1 && t.hours() == 6);
+            String body = "_csrf=" + csrf(page.body()) + "&start=" + DATE + "&end=" + DATE.plusDays(11)
+                    + "&loads[0].classId=1&loads[0].subjectId=1&loads[0].teacherId=1&loads[0].weeklyCount=3";
+            var preview = post(client, "/schedule/generate/preview", body);
+            assertThat(preview.statusCode()).isEqualTo(302);
+            preview = get(client, "/schedule/generate/draft");
+            assertThat(preview.statusCode()).isEqualTo(200);
+            assertThat(preview.body()).contains("Черновик расписания школы", "12 занятий за период", "7А класс", "7Б класс");
+            assertThat(get(client, "/schedule/generate/draft?view=teacher").statusCode()).isEqualTo(200);
+            assertThat(repository.count()).isZero();
+            var token = java.util.regex.Pattern.compile("name=\"previewToken\" value=\"([^\"]+)\"").matcher(preview.body());
+            assertThat(token.find()).isTrue();
+            String save = "_csrf=" + csrf(preview.body()) + "&previewToken=" + token.group(1) + "&confirmReplacement=true";
+            assertThat(post(client, "/schedule/generate/save", save).statusCode()).isEqualTo(302);
+            assertThat(post(client, "/schedule/generate/save", save).statusCode()).isEqualTo(302);
+            assertThat(repository.count()).isEqualTo(12);
+            assertThat(post(client, "/schedule/generate/preview", body + "&schoolId=2").statusCode()).isEqualTo(403);
+            assertThat(post(client, "/schedule/generate/preview", "start=" + DATE).statusCode()).isEqualTo(403);
+            var invalid = post(client, "/schedule/generate/preview", body.replace("start=" + DATE, "start=2030-10-19"));
+            assertThat(invalid.statusCode()).isEqualTo(200);
+            assertThat(invalid.body()).contains("будущий период");
+        }
+        try (var client = loggedIn("teacher_test")) {
+            assertThat(get(client, "/schedule/generate").statusCode()).isEqualTo(403);
+            assertThat(get(client, "/management/curriculum?classId=1").statusCode()).isEqualTo(403);
+            assertThat(post(client, "/schedule/generate/preview", "_csrf=" + csrf(get(client, "/login").body())).statusCode()).isEqualTo(403);
+        }
+    }
+
+    @Test
+    void workingDaysReplaceOldRestrictionsAndConstrainTheWholeDay() {
+        schoolCurriculum(3);
+        curriculum.setUnavailable(1, 1, 1, 1, false);
+        curriculum.saveWorkingDays(1, 1, java.util.List.of(1, 3, 5));
+        assertThat(curriculum.workingDays(1).get(1L)).containsExactly(1, 3, 5);
+        assertThat(curriculum.unavailable(1)).hasSize(12);
+        var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        assertThat(plan.entries()).allMatch(e -> java.util.List.of(1, 3, 5).contains(e.getDate().getDayOfWeek().getValue()));
+        assertThatThrownBy(() -> generation.move(plan, plan.entries().getFirst().getRequestToken(), 2, 1, 1))
+                .hasMessageContaining("недоступен");
+        curriculum.saveWorkingDays(1, 1, java.util.List.of(1, 2, 3, 4, 5));
+        assertThat(curriculum.unavailable(1)).isEmpty();
+        assertThatThrownBy(() -> generation.save(1, plan)).hasMessageContaining("изменились");
+        assertThatThrownBy(() -> curriculum.saveWorkingDays(1, 1, java.util.List.of())).hasMessageContaining("хотя бы один");
+        assertThatThrownBy(() -> curriculum.saveWorkingDays(1, 1, java.util.List.of(6))).hasMessageContaining("рабочий день");
+        assertThatThrownBy(() -> curriculum.saveWorkingDays(2, 1, java.util.List.of(1))).hasMessageContaining("не найден");
+        assertThat(curriculum.unavailable(1)).isEmpty();
+    }
+
+    @Test
+    void tooMuchLoadForWorkingDaysIsReportedBeforeSearch() {
+        schoolCurriculum(4);
+        curriculum.saveWorkingDays(1, 1, java.util.List.of(1));
+        assertThatThrownBy(() -> generation.previewSchool(1, DATE, DATE.plusDays(11)))
+                .hasMessageContaining("назначено 8 ч., доступно 6");
+    }
+
+    @Test
+    void workingDaysHttpSavesSeveralDaysAndRejectsEmptySelection() throws Exception {
+        try (var client = loggedIn("director_test")) {
+            var page = get(client, "/schedule/generate");
+            assertThat(page.body()).contains("Рабочие дни учителя", "name=\"days\"").doesNotContain("/schedule/generate/unavailable");
+            String token = "_csrf=" + csrf(page.body());
+            assertThat(post(client, "/schedule/generate/working-days", token + "&teacherId=1&days=1&days=3").statusCode()).isEqualTo(302);
+            assertThat(curriculum.workingDays(1).get(1L)).containsExactly(1, 3);
+            assertThat(get(client, "/schedule/generate").body()).contains("Рабочие дни учителя сохранены");
+            assertThat(post(client, "/schedule/generate/working-days", token + "&teacherId=1").statusCode()).isEqualTo(302);
+            assertThat(curriculum.workingDays(1).get(1L)).containsExactly(1, 3);
+            assertThat(get(client, "/schedule/generate").body()).contains("Выберите хотя бы один рабочий день");
+            assertThat(post(client, "/schedule/generate/working-days", token + "&teacherId=1&days=1&schoolId=2").statusCode()).isEqualTo(403);
+        }
+    }
+
+    @Test
+    void workloadRequiresExplicitHoursAndStartsEmpty() {
+        assertThat(curriculum.loads(1)).isEmpty();
+        assertThat(curriculum.classForm(1, 1).getLoads()).allMatch(l -> l.getWeeklyCount() == 0);
+        assertThat(curriculum.teacherSummary(1)).allMatch(t -> t.hours() == 0);
+        var input = generationInput(3);
+        var row = new com.example.edujurnal.dto.GenerationForm.Load();
+        row.setSubjectId(1L);
+        row.setTeacherId(1L);
+        input.setLoads(java.util.List.of(row));
+        assertThatThrownBy(() -> curriculum.saveClass(1, 1, input)).isInstanceOf(ScheduleException.class);
+        assertThat(curriculum.loads(1)).isEmpty();
+    }
+
+    @Test
+    void weeklyLimitsAreIndependentAndInvalidateDrafts() {
+        schoolCurriculum(3);
+        curriculum.saveWeeklyLimit(1, "class", 1, 3);
+        curriculum.saveWeeklyLimit(1, "class", 2, 20);
+        curriculum.saveWeeklyLimit(1, "teacher", 1, 6);
+        var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        assertThat(plan.entries()).hasSize(6);
+        curriculum.saveWeeklyLimit(1, "teacher", 1, 5);
+        assertThatThrownBy(() -> generation.previewSchool(1, DATE, DATE.plusDays(11)))
+                .hasMessageContaining("назначено 6 уроков, недельный лимит — 5");
+        assertThatThrownBy(() -> generation.save(1, plan)).hasMessageContaining("изменились");
+        curriculum.saveWeeklyLimit(1, "teacher", 1, 30);
+        curriculum.saveWeeklyLimit(1, "class", 1, 2);
+        assertThatThrownBy(() -> generation.previewSchool(1, DATE, DATE.plusDays(11)))
+                .hasMessageContaining("в плане 3 уроков, недельный лимит — 2");
+        assertThatThrownBy(() -> generation.preview(1, generationInput(3))).hasMessageContaining("лимит класса");
+        assertThat(curriculum.classLimits(1)).containsEntry(2L, 20);
+        assertThat(curriculum.classLimits(2)).isEmpty();
+        assertThatThrownBy(() -> curriculum.saveWeeklyLimit(2, "class", 1, 20)).hasMessageContaining("не найден");
+        assertThatThrownBy(() -> curriculum.saveWeeklyLimit(2, "teacher", 1, 20)).hasMessageContaining("не найден");
+        assertThatThrownBy(() -> curriculum.saveWeeklyLimit(1, "teacher", 1, 31)).hasMessageContaining("от 0 до 30");
+        assertThat(curriculum.teacherLimits(1)).containsEntry(1L, 30);
+    }
+
+    @Test
+    void zeroClassLimitAllowsAnEmptyPlanAndTeacherLimitAppliesToDirectPreview() {
+        curriculum.saveClass(1, 1, generationInput(3));
+        curriculum.saveWeeklyLimit(1, "class", 2, 0);
+        curriculum.saveWeeklyLimit(1, "teacher", 1, 2);
+        assertThatThrownBy(() -> generation.preview(1, generationInput(3))).hasMessageContaining("лимит учителя");
+        curriculum.saveWeeklyLimit(1, "teacher", 1, 3);
+        assertThat(generation.previewSchool(1, DATE, DATE.plusDays(11)).entries()).hasSize(3);
+    }
+
+    @Test
+    void directorEditsWeeklyLimitsInManagement() throws Exception {
+        try (var client = loggedIn("director_test")) {
+            var page = get(client, "/management");
+            String token = "_csrf=" + csrf(page.body());
+            assertThat(post(client, "/management/workload-limits", token + "&type=class&id=1&weeklyLimit=25").statusCode()).isEqualTo(302);
+            assertThat(curriculum.classLimits(1)).containsEntry(1L, 25);
+            assertThat(post(client, "/management/workload-limits", token + "&type=teacher&id=1&weeklyLimit=20").statusCode()).isEqualTo(302);
+            assertThat(curriculum.teacherLimits(1)).containsEntry(1L, 20);
+            assertThat(get(client, "/management").body()).contains("value=\"25\"", "value=\"20\"");
+            assertThat(post(client, "/management/workload-limits", token + "&type=teacher&id=1&weeklyLimit=30").statusCode()).isEqualTo(302);
+            assertThat(curriculum.teacherLimits(1)).containsEntry(1L, 30);
+        }
+        for (String login : List.of("teacher_test", "owner_test", "other_director")) {
+            try (var client = loggedIn(login)) {
+                var page = get(client, "/login");
+                post(client, "/management/workload-limits", "_csrf=" + csrf(page.body()) + "&type=teacher&id=1&weeklyLimit=0");
+                assertThat(curriculum.teacherLimits(1)).containsEntry(1L, 30);
+            }
+        }
+    }
+
+    private void schoolCurriculum(int hours) {
+        curriculum.saveClass(1, 1, generationInput(hours));
+        curriculum.copy(1, 1, 2);
+    }
+
+    @Test
+    void schoolPlanReplacesOnlySelectedPeriodAndRejectsStaleDraft() {
+        schoolCurriculum(3);
+        var old = service.save(1, null, standard());
+        var outside = standard();
+        outside.setDate(DATE.plusMonths(1));
+        var retained = service.save(1, null, outside);
+        var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        assertThat(plan.replaced()).containsKey(old.getId());
+        assertThat(repository.count()).isEqualTo(2);
+        assertThat(generation.save(1, plan)).isEqualTo(12);
+        assertThat(generation.save(1, plan)).isEqualTo(12);
+        assertThat(repository.count()).isEqualTo(13);
+        assertThat(repository.findById(retained.getId())).isPresent();
+        assertThat(repository.findById(old.getId())).isEmpty();
+        var stale = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        curriculum.saveSettings(1, 5, 5);
+        assertThatThrownBy(() -> generation.save(1, stale)).hasMessageContaining("изменились");
+        assertThat(repository.count()).isEqualTo(13);
+    }
+
+    @Test
+    void schoolPreflightAndMovesRespectStoredConstraints() {
+        assertThat(curriculum.problems(1)).anyMatch(e -> e.contains("7А"));
+        schoolCurriculum(3);
+        curriculum.saveSettings(1, 3, 3);
+        curriculum.setUnavailable(1, 1, 1, 1, false);
+        var form = curriculum.classForm(1, 1);
+        form.getLoads().stream().filter(l -> l.getSubjectId() == 1).forEach(l -> l.setRoomId(2L));
+        curriculum.saveClass(1, 1, form);
+        var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        assertThat(plan.entries()).allSatisfy(e -> {
+            assertThat(e.getLessonNumber()).isLessThanOrEqualTo(3);
+            assertThat(e.getDate().getDayOfWeek().getValue()).isLessThanOrEqualTo(3);
+            if (e.getClassId() == 1) assertThat(e.getRoomId()).isEqualTo(2L);
+        });
+        var entry = plan.entries().getFirst();
+        assertThatThrownBy(() -> generation.move(plan, entry.getRequestToken(), 1, 1, entry.getRoomId())).hasMessageContaining("недоступен");
+        assertThatThrownBy(() -> generation.move(plan, entry.getRequestToken(), 5, 6, entry.getRoomId())).hasMessageContaining("за пределами");
+        assertThatCode(() -> generation.move(plan, entry.getRequestToken(), entry.getDate().getDayOfWeek().getValue(), entry.getLessonNumber(), entry.getRoomId())).doesNotThrowAnyException();
+        curriculum.saveSettings(1, 1, 2);
+        assertThat(curriculum.problems(1)).anyMatch(e -> e.contains("назначено 6 ч."));
+        assertThatThrownBy(() -> generation.previewSchool(1, DATE, DATE.plusDays(11))).isInstanceOf(ScheduleException.class);
+        assertThatThrownBy(() -> curriculum.copy(1, 1, 20)).hasMessageContaining("Класс не найден");
+    }
+
+    @Test
+    void schoolReplacementPreservesLessonsIfCatalogChanged() {
+        schoolCurriculum(2);
+        var old = service.save(1, null, standard());
+        var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        jdbc.update("update schedule_class set student_count=100 where id=2");
+        try {
+            assertThatThrownBy(() -> generation.save(1, plan)).hasMessageContaining("кабинета");
+            assertThat(repository.findById(old.getId())).isPresent();
+            assertThat(repository.count()).isEqualTo(1);
+        } finally { jdbc.update("update schedule_class set student_count=0 where id=2"); }
+    }
+
+    @Test
+    void pinnedLessonsKeepTheirPlacementDuringSchoolRecalculation() {
+        schoolCurriculum(5);
+        var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        var entry = plan.entries().getFirst();
+        var moved = generation.move(plan, entry.getRequestToken(), 5, 6, 3);
+        var pinned = generation.pin(moved, entry.getRequestToken());
+        var regenerated = generation.regenerate(pinned);
+        assertThat(regenerated.entries()).hasSize(10);
+        var fixed = regenerated.entries().stream().filter(e -> e.getRequestToken().equals(entry.getRequestToken())).findFirst().orElseThrow();
+        assertThat(fixed.getDate().getDayOfWeek()).isEqualTo(DayOfWeek.FRIDAY);
+        assertThat(fixed.getLessonNumber()).isEqualTo(6);
+        assertThat(fixed.getRoomId()).isEqualTo(3L);
+        assertThat(regenerated.pinned()).containsExactly(entry.getRequestToken());
+        assertThat(generation.save(1, regenerated)).isEqualTo(20);
+    }
+
+    @Test
+    void staleSchoolDraftCannotEraseNewManualLesson() {
+        schoolCurriculum(3);
+        var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
+        var newLesson = service.save(1, null, standard());
+        assertThatThrownBy(() -> generation.save(1, plan)).hasMessageContaining("изменились");
+        assertThat(repository.findById(newLesson.getId())).isPresent();
+        assertThat(repository.count()).isEqualTo(1);
     }
 
     @Test

@@ -9,22 +9,17 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 public class JournalController {
-    private final JournalService journal;
+    private final JournalService journal; private final JournalBrowserService browser;
     private final ScheduleAccessService access;
     private final FinalGradeService finals;
     private final LessonJournalService lessons;
-    public JournalController(JournalService journal,ScheduleAccessService access,FinalGradeService finals,LessonJournalService lessons) { this.journal=journal;this.access=access;this.finals=finals;this.lessons=lessons; }
+    public JournalController(JournalService journal,ScheduleAccessService access,FinalGradeService finals,LessonJournalService lessons,JournalBrowserService browser) { this.journal=journal;this.access=access;this.finals=finals;this.lessons=lessons;this.browser=browser; }
     @GetMapping("/journal")
     public String journal(Authentication auth,@RequestParam(defaultValue="false") boolean family,
                           @RequestParam(required=false) Long childId,@RequestParam(required=false) Long yearId,
-                          @RequestParam(required=false) Long quarterId,Model model) {
-        model.addAttribute("user",access.currentUser(auth));
-        var view=journal.view(auth,family,childId,yearId,quarterId);
-        model.addAttribute("view",view);
-        model.addAttribute("finals",finals.list(auth,family,childId,yearId,quarterId));
-        model.addAttribute("subjects",view.entries().stream().collect(java.util.stream.Collectors.groupingBy(
-                JournalService.Entry::subject,java.util.TreeMap::new,java.util.stream.Collectors.toList())));
-        return "academic/journal";
+                          @RequestParam(required=false) Long quarterId,@RequestParam(required=false) Long classId,@RequestParam(required=false) Long studentId,@RequestParam(defaultValue="") String subject,@RequestParam(defaultValue="") String search,@RequestParam(defaultValue="0") int page,Model model) {
+        var view=browser.prepare(auth,family,childId,yearId,quarterId,classId,studentId,subject,search,page,model,"/journal");
+        model.addAttribute("finals", (view.teacher() || access.currentUser(auth).getRole()==com.example.edujurnal.entity.Role.DIRECTOR) && studentId==null ? java.util.List.of() : finals.list(auth,family,childId,yearId,quarterId,studentId,subject));        return "academic/journal";
     }
     @PostMapping("/journal/grades")
     public String grade(Authentication auth,@RequestParam long lessonId,@RequestParam long studentId,@RequestParam int value,@RequestParam(defaultValue="false") boolean returnToLesson,RedirectAttributes flash) {

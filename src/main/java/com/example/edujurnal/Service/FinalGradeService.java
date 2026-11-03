@@ -20,7 +20,9 @@ public class FinalGradeService {
     }
     public record FinalMark(long studentId,String studentName,long subjectId,String subject,String className,Integer value,boolean editable) {}
     public List<FinalMark> list(Authentication auth,boolean family,Long childId,Long yearId,Long quarterId) {
-        var view=journal.view(auth,family,childId,yearId,quarterId);
+ return list(auth,family,childId,yearId,quarterId,null,null); }
+ public List<FinalMark> list(Authentication auth,boolean family,Long childId,Long yearId,Long quarterId,Long selectedStudent,String subject) {
+        var view=journal.view(auth,family,childId,yearId,quarterId,selectedStudent,subject,0,0);
         if(view.yearId()==null) return List.of();
         User user=access.currentUser(auth);
         long school=jdbc.queryForObject("select school_id from academic_year where id=?",Long.class,view.yearId());
@@ -41,7 +43,7 @@ public class FinalGradeService {
             sql+=" and exists(select 1 from teaching_assignment a where a.school_id=u.school_id and a.class_id=c.id and a.subject_id=s.id and a.teacher_id=?)";
             args.add(user.getTeacherId());
         }
-        sql+=" order by c.name,s.name,u.full_name,u.id";
+        if(selectedStudent!=null){sql+=" and u.id=?";args.add(selectedStudent);} if(subject!=null && !subject.isBlank()){sql+=" and s.name=?";args.add(subject);} sql+=" order by c.name,s.name,u.full_name,u.id";
         return jdbc.query(sql,(r,n)->new FinalMark(r.getLong("id"),r.getString("full_name"),r.getLong("subject_id"),r.getString("subject"),r.getString("class_name"),r.getObject("grade_value",Integer.class),view.teacher() && r.getObject("grade_value")==null),args.toArray());
     }
     private int period(long year,Long quarter) {

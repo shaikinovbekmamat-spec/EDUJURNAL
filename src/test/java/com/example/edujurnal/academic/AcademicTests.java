@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.*;
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties="spring.datasource.url=jdbc:h2:mem:academic-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
 @ActiveProfiles("test")
 class AcademicTests {
-    @Autowired AcademicService academic;
+    @Autowired AcademicService academic; @Autowired AttendanceService attendance;
     @Autowired JournalService journal;
     @Autowired FinalGradeService finals;
     @Autowired LessonJournalService lessonJournal;
@@ -46,7 +46,7 @@ class AcademicTests {
     Authentication director() {return auth("director",Role.DIRECTOR);}
     Authentication teacher() {return auth("teacher",Role.TEACHER);}
     @BeforeEach void setup() {
-        for(String table:List.of("journal_final_grade","journal_grade","parent_student","teaching_assignment","academic_quarter","academic_year","users","schedule_lesson","schedule_teacher_subject","schedule_membership","schedule_subgroup","schedule_room","schedule_teacher","schedule_subject","schedule_class","schedule_school")) jdbc.update("delete from "+table);
+        for(String table:List.of("attendance_notification","attendance_history","attendance","journal_final_grade","journal_grade","parent_student","teaching_assignment","academic_quarter","academic_year","users","schedule_lesson","schedule_teacher_subject","schedule_membership","schedule_subgroup","schedule_room","schedule_teacher","schedule_subject","schedule_class","schedule_school")) jdbc.update("delete from "+table);
         jdbc.update("insert into schedule_school values(1,'Школа А'),(2,'Школа Б')");
         jdbc.update("insert into schedule_class(id,school_id,name) values(1,1,'7А'),(2,2,'8Б')");
         jdbc.update("insert into schedule_subject values(1,1,'Математика'),(2,2,'Физика')");
@@ -100,6 +100,38 @@ class AcademicTests {
             assertThat(page.body()).contains("Класс не назначен", "Оценок пока нет", "На сегодня уроков нет");
             java.nio.file.Files.writeString(java.nio.file.Path.of("target/dashboard-empty-preview.html"),
                     page.body().replace("/css/dashboard.css", "classes/static/css/dashboard.css"));
+        }
+    }
+    @Test void attendanceCorrectionsNotifyOnceAndEnforceAccess() throws Exception {
+        jdbc.update("insert into parent_student(parent_id,student_id,confirmed_by) values(?,?,?)",parent,student,teacher);
+        attendance.save(teacher(),1,student,"ABSENT","","",0);
+        attendance.save(teacher(),1,student,"ABSENT","","",0);
+        assertThat(attendance.notifications(auth("parent",Role.PARENT))).hasSize(1);
+        assertThatThrownBy(()->attendance.save(teacher(),1,student,"LATE","","",1)).hasMessageContaining("причину");
+        attendance.save(teacher(),1,student,"LATE","","Пришёл позже",1);
+        assertThat(attendance.notifications(auth("parent",Role.PARENT))).singleElement().satisfies(n->assertThat(n.get("status")).isEqualTo("LATE"));
+        assertThat(attendance.history(teacher(),1,student)).hasSize(2);
+        assertThatThrownBy(()->attendance.save(teacher(),1,student,"PRESENT","","Ошибка",1)).hasMessageContaining("изменена");
+        assertThatThrownBy(()->attendance.save(teacher(),2,otherStudent,"ABSENT","","",0)).isInstanceOf(AccessDeniedException.class);
+        try(var client=login("teacher")){ assertThat(get(client,"/attendance").statusCode()).isEqualTo(200); }
+        try(var client=login("parent")){ assertThat(get(client,"/notifications").statusCode()).isEqualTo(200); }
+    }
+    @Test void browserPaginatesLargeRostersAndRejectsForeignSelections() throws Exception {
+        for(int i=0;i<1001;i++) jdbc.update("insert into users(login,password,role,full_name,school_id,student_class_id,enabled) values(?,?,'STUDENT',?,1,1,true)","roster"+i,"unused","Тестовый ученик "+i);
+        try(var client=login("teacher")) {
+            var classes=get(client,"/journal");assertThat(classes.statusCode()).isEqualTo(200);assertThat(classes.body()).contains("Выберите класс").doesNotContain("Тестовый ученик");
+            var roster=get(client,"/journal?classId=1");assertThat(roster.statusCode()).isEqualTo(200);assertThat(roster.body().split("Открыть учебные записи",-1).length-1).isEqualTo(30);
+            assertThat(get(client,"/journal?classId=1&page=1").body()).doesNotContain("Выберите класс");
+            assertThat(get(client,"/journal?classId=2").statusCode()).isEqualTo(403);
+            assertThat(get(client,"/attendance?classId=1&studentId="+otherStudent).statusCode()).isEqualTo(403);
+            var attendancePage=get(client,"/attendance?classId=1&studentId="+student);assertThat(attendancePage.statusCode()).isEqualTo(200);assertThat(attendancePage.body()).contains("Не отмечено","Все предметы");
+            assertThat(get(client,"/journal?classId=1&studentId="+student+"&subject=Unknown").body()).contains("Нет уроков");
+        }
+        jdbc.update("insert into parent_student(parent_id,student_id,confirmed_by) values(?,?,?)",parent,student,teacher);
+        attendance.save(teacher(),1,student,"ABSENT","","",0);
+        try(var client=login("parent")) {
+            assertThat(get(client,"/notifications?childId="+otherStudent).statusCode()).isEqualTo(403);
+            var response=get(client,"/notifications?unread=true");assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).contains("Отсутствовал");
         }
     }
     @Test void yearCreationIsAtomicAndRejectsOverlap() {
@@ -485,7 +517,7 @@ class AcademicTests {
         academic.linkParent(director(),null,"parent",student);
         journal.saveGrade(teacher(),1,student,5);
         for(String login:List.of("director","teacher","student","parent")) try(var client=login(login)) {
-            var page=get(client,"/journal");assertThat(page.statusCode()).as(login+" journal").isEqualTo(200);
+            var page=get(client,(login.equals("teacher") || login.equals("director")) ? "/journal?classId=1&studentId="+student : "/journal");assertThat(page.statusCode()).as(login+" journal").isEqualTo(200);
             assertThat(page.body()).contains("Математика","1 четверть");
             if(login.equals("student")) preview("journal",page.body());
             if(login.equals("director")) {
@@ -511,7 +543,7 @@ class AcademicTests {
             assertThat(post(client,"/journal/grades",payload).statusCode()).isEqualTo(302);
             assertThat(post(client,"/journal/grades",payload.replace("value=5","value=4")).statusCode()).isEqualTo(400);
             assertThat(post(client,"/journal/grades","lessonId=1&studentId="+student+"&value=5").statusCode()).isEqualTo(403);
-            assertThat(get(client,"/journal").body()).contains("grade-5").doesNotContain("action=\"/journal/grades\"");
+            assertThat(get(client,"/journal?classId=1&studentId="+student).body()).contains("grade-5").doesNotContain("action=\"/journal/grades\"");
         }
         try(var client=login("student")) {
             assertThat(post(client,"/journal/grades","_csrf="+csrf(get(client,"/journal").body())+"&lessonId=1&studentId="+student+"&value=5").statusCode()).isEqualTo(403);
@@ -571,7 +603,7 @@ class AcademicTests {
         }
         academic.linkParent(director(),null,"parent",student);
         for(String login:List.of("student","parent")) try(var client=login(login)) {
-            assertThat(get(client,"/journal").body()).contains("grade-5");
+            assertThat(get(client,"/journal?classId=1&studentId="+student).body()).contains("grade-5");
             assertThat(get(client,"/journal/lessons/1").statusCode()).isEqualTo(403);
         }
     }

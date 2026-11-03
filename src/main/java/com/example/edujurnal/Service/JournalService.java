@@ -31,6 +31,9 @@ public class JournalService {
                 (r,n)->new Child(r.getLong(1),r.getString(2),r.getString(3)),user.getId());
     }
     public View view(Authentication auth,boolean family,Long childId,Long yearId,Long quarterId) {
+        return view(auth,family,childId,yearId,quarterId,null,null,-1,0);
+    }
+    public View view(Authentication auth,boolean family,Long childId,Long yearId,Long quarterId,Long selectedStudent,String subject,int limit,int offset) {
         User user=access.currentUser(auth);
         if(user.getRole()==Role.OWNER) throw new AccessDeniedException("Владельцу доступны аккаунты школ, но не личные оценки учеников.");
         family=user.getRole()==Role.PARENT || (user.getRole()==Role.TEACHER && family);
@@ -73,7 +76,7 @@ public class JournalService {
             join users u on u.school_id=l.school_id and u.role='STUDENT'
             left join journal_grade g on g.lesson_id=l.id and g.student_id=u.id
             where l.school_id=? and l.lesson_date between ? and ?
-              and (g.id is not null or (u.student_class_id=l.class_id and
+              and (g.id is not null or exists(select 1 from attendance att where att.lesson_id=l.id and att.student_id=u.id) or (u.student_class_id=l.class_id and
                 (l.subgroup_id is null or exists(select 1 from schedule_membership m where m.subgroup_id=l.subgroup_id
                  and m.student_id=u.id and m.active_from<=l.lesson_date and (m.active_to is null or m.active_to>=l.lesson_date)))))
             """;
@@ -83,7 +86,10 @@ public class JournalService {
             sql+=" and l.teacher_id=? and exists(select 1 from teaching_assignment a where a.school_id=l.school_id and a.class_id=l.class_id and a.subject_id=l.subject_id and a.teacher_id=l.teacher_id)";
             args.add(user.getTeacherId());
         }
-        sql+=" order by l.lesson_date desc,l.start_time,c.name,s.name,u.full_name,u.id";
+        if(selectedStudent!=null) { sql+=" and u.id=?"; args.add(selectedStudent); }
+        if(subject!=null && !subject.isBlank()) { sql+=" and s.name=?"; args.add(subject); }
+        sql+=" order by l.lesson_date desc,l.start_time,c.name,s.name,u.full_name,u.id,l.id";
+        if(limit>=0) {sql+=" limit ? offset ?";args.add(limit);args.add(offset);}
         List<Entry> entries=jdbc.query(sql,(r,n)-> {
             LocalDate day=r.getObject("lesson_date",LocalDate.class);
             Integer grade=r.getObject("grade_value",Integer.class);

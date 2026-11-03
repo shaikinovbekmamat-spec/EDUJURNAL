@@ -2,11 +2,12 @@
 <aside th:replace="~{academic/layout :: sidebar}"></aside>
 <main class="workspace management-workspace"><header class="management-header"><div class="heading"><h1>Управление школой</h1><p class="muted" th:text="${school.name}"></p></div>
 
-<nav class="tabs" aria-label="Разделы управления"><a th:if="${director}" href="#catalog">Классы и предметы</a><a th:if="${director}" href="#class-teachers">Классные руководители</a><a th:if="${director}" href="#years">Учебные периоды</a><a href="#accounts">Управление пользователями</a><a th:if="${director}" href="#assignments">Назначения</a></nav></header><div th:if="${success}" class="success" role="status" th:text="${success}"></div>
+<nav class="tabs" aria-label="Разделы управления"><a th:if="${director}" href="#catalog">Классы и предметы</a><a th:if="${director}" href="#class-teachers">Классные руководители</a><a th:if="${director}" href="#years">Учебные периоды</a><a href="#accounts">Управление пользователями</a><a th:if="${director}" href="#assignments">Назначения</a><a th:if="${director}" href="#workload">Нагрузка классов и учителей</a></nav></header><div th:if="${success}" class="success" role="status" th:text="${success}"></div>
 <div th:if="${director}" class="grid" id="catalog">
 <section class="card"><h2>Классы</h2><form th:action="@{/management/catalog}" method="post" class="fields"><input type="hidden" name="type" value="class"><label>Название<input name="name" placeholder="7А" maxlength="100" required></label><label>Численность<input name="studentCount" type="number" min="0" max="100" value="0" required></label><button type="submit">Создать класс</button></form><p class="account-help">Удалить можно только класс без учеников, подгрупп, назначений, уроков и оценок.</p>
 <details class="management-item" th:each="c : ${catalog.classes}"><summary><span th:text="${c.name}"></span><span class="muted">Редактировать</span></summary>
 <form th:action="@{/management/classes/{id}/edit(id=${c.id})}" method="post" class="fields"><label>Название<input name="name" th:value="${c.name}" maxlength="100" required></label><label>Численность<input name="studentCount" type="number" min="0" max="100" th:value="${c.studentCount}" required></label><button type="submit">Сохранить класс</button></form>
+<p><a href="#workload">Установить недельный лимит уроков</a></p>
 <form th:action="@{/management/classes/{id}/delete(id=${c.id})}" method="post" class="delete-form" th:attr="data-confirm=|Удалить класс «${c.name}»? Это действие нельзя отменить.|"><button type="submit" class="danger">Удалить класс</button></form></details>
 <p class="muted" th:if="${#lists.isEmpty(catalog.classes)}">Классы ещё не созданы.</p></section>
 <section class="card"><h2>Предметы</h2><form th:action="@{/management/catalog}" method="post" class="fields"><input type="hidden" name="type" value="subject"><label class="wide">Название<input name="name" placeholder="Математика" maxlength="100" required></label><button type="submit">Создать предмет</button></form><p class="account-help">Удалить можно только предмет без назначений, уроков и итоговых оценок.</p>
@@ -15,6 +16,26 @@
 <form th:action="@{/management/subjects/{id}/delete(id=${s.id})}" method="post" class="delete-form" th:attr="data-confirm=|Удалить предмет «${s.name}»? Это действие нельзя отменить.|"><button type="submit" class="danger">Удалить предмет</button></form></details>
 <p class="muted" th:if="${#lists.isEmpty(catalog.subjects)}">Предметы ещё не созданы.</p></section>
 </div>
+<section th:if="${director}" class="card" id="workload">
+<h2>Нагрузка классов и учителей</h2>
+<p class="muted">Установите максимальное количество уроков в неделю отдельно для каждого класса и учителя. Например: 5-й класс — 25, 11-й класс — 30; один учитель — 20, другой — 30.</p>
+<p class="muted">Это верхняя граница, а не обязательное число уроков. Пока индивидуальный лимит не задан, действует общий максимум 30. Ноль запрещает нагрузку. Текущая сетка — до 5 дней по 6 уроков; рабочие дни учителя могут дополнительно уменьшать доступное время.</p>
+<div th:if="${workloadError}" class="errors" role="alert" th:text="${workloadError}"></div>
+<h3>Классы</h3>
+<div class="management-item" th:each="c : ${classWorkloads}">
+<p><strong th:text="${c.name}"></strong> · <span th:text="|В учебном плане: ${c.hours} ч. в неделю|"></span></p>
+<form method="post" th:action="@{/management/workload-limits}" class="fields"><input type="hidden" name="type" value="class"><input type="hidden" name="id" th:value="${c.id}"><label>Максимум уроков в неделю<input name="weeklyLimit" type="number" min="0" max="30" required placeholder="Не задан (общий максимум 30)" th:value="${classLimits[c.id]}" th:aria-label="|Недельный лимит класса ${c.name}|"></label><button type="submit">Сохранить лимит класса</button></form>
+<p class="errors" th:if="${classLimits[c.id] != null and c.hours > classLimits[c.id]}">Учебный план превышает лимит. Перед составлением расписания уменьшите часы в плане или измените лимит.</p>
+</div>
+<p class="muted" th:if="${#lists.isEmpty(classWorkloads)}">Сначала создайте классы.</p>
+<h3>Учителя</h3>
+<div class="management-item" th:each="t : ${teacherWorkloads}">
+<p><strong th:text="${t.name}"></strong> · <span th:text="|Назначено по всем классам: ${t.hours} ч. в неделю|"></span></p>
+<form method="post" th:action="@{/management/workload-limits}" class="fields"><input type="hidden" name="type" value="teacher"><input type="hidden" name="id" th:value="${t.id}"><label>Максимум уроков в неделю<input name="weeklyLimit" type="number" min="0" max="30" required placeholder="Не задан (общий максимум 30)" th:value="${teacherLimits[t.id]}" th:aria-label="|Недельный лимит учителя ${t.name}|"></label><button type="submit">Сохранить лимит учителя</button></form>
+<p class="errors" th:if="${teacherLimits[t.id] != null and t.hours > teacherLimits[t.id]}">Назначенная нагрузка превышает лимит. Перед составлением расписания перераспределите часы или измените лимит.</p>
+</div>
+<p class="muted" th:if="${#lists.isEmpty(teacherWorkloads)}">Сначала создайте учителей.</p>
+</section>
 <section th:if="${director}" class="card" id="class-teachers">
     <h2>Классные руководители</h2>
     <p class="muted">Для каждого класса выберите активного учителя своей школы. Чтобы снять назначение, выберите «Не назначен» и сохраните.</p>

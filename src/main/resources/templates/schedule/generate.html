@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Расписание школы — EduJournal</title>
+<link rel="stylesheet" href="/schedule.css"><link rel="stylesheet" href="/css/navigation.css"><link rel="stylesheet" href="/schedule-planning.css"><script defer src="/schedule-working-days.js"></script></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}"><aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main class="week-page planning-page">
+<a href="/schedule">← Действующее расписание</a><p class="eyebrow" th:text="${school.name}"></p><h1>Расписание всей школы</h1>
+<p>Недельные лимиты классов и учителей задаются в управлении школой. Расписание составляется по учебным планам с учётом этих лимитов и рабочих дней.</p>
+<nav class="planning-steps" aria-label="Этапы составления"><a href="#curriculum"><b>1</b> Учебный план</a><a href="#build"><b>2</b> Составить</a><a href="/schedule/generate/draft"><b>3</b> Проверить и применить</a></nav>
+<div class="success" role="status" th:if="${success}" th:text="${success}"></div><div class="errors" role="alert" th:if="${generationError}" th:text="${generationError}"></div>
+<section class="panel planning-section" id="curriculum">
+<div class="heading"><div><h2>1. Учебные планы классов</h2><p>Укажите предметы, часы и учителей в планах классов. Максимальное число уроков в неделю настраивается отдельно в управлении школой.</p></div><span class="planning-badge" th:text="|Планы заполнены: ${readyCount} из ${#lists.size(classes)}|"></span></div>
+<div class="planning-classes"><a class="planning-class" th:each="c : ${classes}" th:href="@{/management/curriculum(classId=${c.id})}"><strong th:text="${c.name}"></strong><span th:text="${c.hours > 0 ? c.hours + ' ч. в неделю · ' + c.subjects + ' предметов' : 'План пока не заполнен'}"></span><span class="planning-link" th:text="${c.hours > 0 ? 'Изменить план →' : 'Заполнить план →'}"></span></a></div>
+<p th:if="${#lists.isEmpty(classes)}">Сначала <a href="/management">добавьте классы и предметы</a>.</p>
+</section>
+<section class="panel planning-section" id="constraints"><details open><summary>Ограничения школы <span class="hint" th:text="|· ${settings.daysPerWeek} учебных дней, ${settings.dailyLimit} уроков в день|"></span></summary>
+<p>Используется первая смена по существующей сетке звонков. Учебные дни идут подряд с понедельника; занятия занимают первые выбранные номера уроков.</p>
+<form class="filters" method="post" th:action="@{/schedule/generate/settings}"><label>Дней в неделю <select name="daysPerWeek"><option th:each="n : ${#numbers.sequence(1,5)}" th:value="${n}" th:selected="${n == settings.daysPerWeek}" th:text="${n}"></option></select></label><label>Уроков в день <select name="dailyLimit"><option th:each="n : ${#numbers.sequence(1,6)}" th:value="${n}" th:selected="${n == settings.dailyLimit}" th:text="${n}"></option></select></label><button type="submit" class="secondary">Сохранить ограничения</button></form>
+<h3>Рабочие дни учителя</h3>
+<p>Выберите учителя и отметьте все дни, в которые он может работать. В выбранные дни доступны все уроки учебного дня. По умолчанию выбраны все пять дней.</p>
+<form class="working-days-form" method="post" th:action="@{/schedule/generate/working-days}">
+<label>Учитель <select name="teacherId" id="working-days-teacher" required><option value="">Выберите учителя</option><option th:each="t : ${catalog.teachers}" th:value="${t.id}" th:text="${t.name}" th:attr="data-days=${#strings.listJoin(workingDays[t.id], ',')}"></option></select></label>
+<fieldset id="working-days-fields" disabled><legend>Может работать в эти дни</legend><div class="working-days-options"><label th:each="day, i : ${dayNames}"><input type="checkbox" name="days" th:value="${i.count}"><span th:text="${day}"></span></label></div><button type="submit" class="secondary">Сохранить рабочие дни</button></fieldset>
+</form>
+<ul class="availability-list"><li th:each="t : ${catalog.teachers}"><strong th:text="${t.name}"></strong><span th:each="day : ${workingDays[t.id]}" th:text="${dayNames[day - 1]}"></span></li></ul>
+<p class="hint">Для предметов, которым нужен специальный кабинет, закрепите кабинет в учебном плане класса.</p>
+</details></section>
+<section class="panel planning-section" id="build"><h2>2. Составить расписание всей школы</h2><p th:text="|Общая нагрузка: ${totalHours} уроков в неделю. Учителя и кабинеты распределяются одновременно для всех классов.|"></p>
+<div class="errors" th:unless="${#lists.isEmpty(problems)}"><strong>Сначала исправьте учебный план</strong><ul><li th:each="problem : ${problems}" th:text="${problem}"></li></ul></div><p class="success" th:if="${#lists.isEmpty(problems)}">Учебные планы готовы. При составлении проверим совместимость всех занятий.</p>
+<form method="post" th:action="@{/schedule/generate/preview}" th:object="${generationForm}"><div class="errors" role="alert" th:if="${#fields.hasAnyErrors()}"><ul><li th:each="e : ${#fields.allErrors()}" th:text="${e}"></li></ul></div><div class="grid"><label>Действует с<input type="date" th:field="*{start}" required></label><label>До даты включительно<input type="date" th:field="*{end}" required></label></div>
+<p class="hint">Выберите будущий период внутри одного полугодия. Пока создаётся только черновик. После применения он заменит все уроки школы в этих датах. Каникулы и праздники автоматически не исключаются.</p>
+<button type="submit" th:disabled="${!#lists.isEmpty(problems)}">Составить черновик для всей школы</button> <a class="button secondary" href="/schedule/generate/draft">Открыть текущий черновик</a></form></section>
+</main></body></html>
