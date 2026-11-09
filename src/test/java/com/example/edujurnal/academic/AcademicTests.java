@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.*;
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties="spring.datasource.url=jdbc:h2:mem:academic-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
 @ActiveProfiles("test")
 class AcademicTests {
-    @Autowired AcademicService academic; @Autowired AttendanceService attendance;
+    @Autowired AcademicService academic; @Autowired AttendanceService attendance; @Autowired SchoolMessageService messages;
     @Autowired JournalService journal;
     @Autowired FinalGradeService finals;
     @Autowired LessonJournalService lessonJournal;
@@ -46,7 +46,7 @@ class AcademicTests {
     Authentication director() {return auth("director",Role.DIRECTOR);}
     Authentication teacher() {return auth("teacher",Role.TEACHER);}
     @BeforeEach void setup() {
-        for(String table:List.of("attendance_notification","attendance_history","attendance","journal_final_grade","journal_grade","parent_student","teaching_assignment","academic_quarter","academic_year","users","schedule_lesson","schedule_teacher_subject","schedule_membership","schedule_subgroup","schedule_room","schedule_teacher","schedule_subject","schedule_class","schedule_school")) jdbc.update("delete from "+table);
+        for(String table:List.of("school_notification","message_attachment","message_history","message_audience","school_message","attendance_notification","attendance_history","attendance","journal_final_grade","journal_grade","parent_student","teaching_assignment","academic_quarter","academic_year","users","schedule_lesson","schedule_teacher_subject","schedule_membership","schedule_subgroup","schedule_room","schedule_teacher","schedule_subject","schedule_class","schedule_school")) jdbc.update("delete from "+table);
         jdbc.update("insert into schedule_school values(1,'Школа А'),(2,'Школа Б')");
         jdbc.update("insert into schedule_class(id,school_id,name) values(1,1,'7А'),(2,2,'8Б')");
         jdbc.update("insert into schedule_subject values(1,1,'Математика'),(2,2,'Физика')");
@@ -133,6 +133,48 @@ class AcademicTests {
             assertThat(get(client,"/notifications?childId="+otherStudent).statusCode()).isEqualTo(403);
             var response=get(client,"/notifications?unread=true");assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).contains("Отсутствовал");
         }
+    }
+    @Test void communicationsProtectAudienceAndRetainCorrections() throws Exception {
+        academic.linkParent(director(),null,"parent",student);
+        String token=UUID.randomUUID().toString();
+        long announcement=messages.create(teacher(),"ANNOUNCEMENT","Объявление","Текст",List.of(1L),null,null,null,TODAY,token);
+        assertThat(messages.create(teacher(),"ANNOUNCEMENT","Объявление","Текст",List.of(1L),null,null,null,TODAY,token)).isEqualTo(announcement);
+        var file=new org.springframework.mock.web.MockMultipartFile("files","notice.pdf","application/pdf","%PDF-test".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        messages.attachments(teacher(),announcement,new org.springframework.web.multipart.MultipartFile[]{file});
+        long fileId=((Number)messages.attachments(auth("parent",Role.PARENT),announcement).getFirst().get("id")).longValue();
+        assertThat(messages.download(auth("parent",Role.PARENT),fileId).get("name")).isEqualTo("notice.pdf");
+        assertThatThrownBy(()->messages.download(auth("student2",Role.STUDENT),fileId)).isInstanceOf(AccessDeniedException.class);
+        assertThat(messages.inbox(auth("student",Role.STUDENT),0)).hasSize(1);
+        assertThat(messages.inbox(auth("parent",Role.PARENT),0)).hasSize(1);
+        assertThatThrownBy(()->messages.get(auth("student2",Role.STUDENT),announcement)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(()->messages.create(teacher(),"ANNOUNCEMENT","Тест","Текст",List.of(2L),null,null,null,TODAY,UUID.randomUUID().toString())).isInstanceOf(AccessDeniedException.class);
+        long remark=messages.create(teacher(),"REMARK","Замечание","Первый текст",List.of(),null,student,1L,TODAY,UUID.randomUUID().toString());
+        messages.correct(teacher(),remark,0,"Исправленный текст","Уточнение");
+        assertThat(messages.history(auth("parent",Role.PARENT),remark)).hasSize(1);
+        assertThatThrownBy(()->messages.correct(teacher(),remark,0,"Другой текст","Причина")).hasMessageContaining("изменено");
+        assertThatThrownBy(()->messages.get(auth("student2",Role.STUDENT),remark)).isInstanceOf(AccessDeniedException.class);
+        for(String login:List.of("teacher","student","parent","director"))try(var client=login(login)){
+            assertThat(get(client,"/messages").statusCode()).isEqualTo(200);
+            assertThat(get(client,"/messages/"+remark).statusCode()).isEqualTo(200);
+            var inbox = get(client,"/inbox"); assertThat(inbox.statusCode()).isEqualTo(302); assertThat(inbox.headers().firstValue("Location").orElseThrow()).endsWith("/messages");
+        }
+        try(var client=login("teacher")){assertThat(get(client,"/messages/new?kind=REMARK&classId=1").statusCode()).isEqualTo(200);}
+        jdbc.update("delete from parent_student where parent_id=?",parent);
+        assertThatThrownBy(()->messages.get(auth("parent",Role.PARENT),remark)).isInstanceOf(AccessDeniedException.class);
+        assertThat(messages.inbox(auth("parent",Role.PARENT),0)).isEmpty();
+    }
+    @Test void lessonChangesNotifyOnlyAffectedStudentsAndTeacher() {
+        academic.linkParent(director(),null,"parent",student);
+        var form=schedule.editForm(1,1);form.setStartTime(LocalTime.of(11,0));form.setEndTime(LocalTime.of(11,45));
+        schedule.save(1,1L,form);
+        assertThat(messages.inbox(auth("student",Role.STUDENT),0)).hasSize(1);
+        assertThat(messages.inbox(teacher(),0)).hasSize(1);
+        assertThat(messages.inbox(auth("parent",Role.PARENT),0)).isEmpty();
+        assertThat(messages.inbox(auth("student2",Role.STUDENT),0)).isEmpty();
+        assertThatThrownBy(()->schedule.save(1,1L,form)).hasMessageContaining("изменён");
+        assertThat(messages.inbox(auth("student",Role.STUDENT),0)).hasSize(1);
+        schedule.cancel(1,1,schedule.get(1,1).getVersion());
+        assertThat(messages.inbox(auth("student",Role.STUDENT),0)).hasSize(2);
     }
     @Test void yearCreationIsAtomicAndRejectsOverlap() {
         assertThat(academic.quarters(1)).hasSize(4);

@@ -99,7 +99,7 @@
         <p>Только директор школы может создавать и редактировать расписание.</p>
         <a th:href="@{/schedule}">Вернуться к расписанию</a>
     </div>
-</main>
+<form th:if="${lessonId != null}" th:action="@{/schedule/{id}/cancel(id=${lessonId})}" method="post"><input type="hidden" name="version" th:value="${form.version}"><button class="danger">Отменить урок и уведомить участников</button></form></main>
 <script th:src="@{/schedule.js}" defer></script>
 </body>
 </html>

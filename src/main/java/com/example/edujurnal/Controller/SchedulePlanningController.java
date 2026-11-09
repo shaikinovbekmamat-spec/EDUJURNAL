@@ -158,7 +158,7 @@ public class SchedulePlanningController {
         var pending = (Pending) session.getAttribute("schoolScheduleDraft");
         if (pending == null || pending.plan().schoolId() != school(model)) return "redirect:/schedule/generate";
         model.addAttribute("plan", pending.plan());
-        model.addAttribute("previewToken", pending.token());
+        model.addAttribute("previewToken", pending.token()); model.addAttribute("verified",pending.token().equals(session.getAttribute("verifiedScheduleToken")));
         model.addAttribute("view", view.equals("teacher") ? "teacher" : "class");
         var refs = catalog.forSchool(school(model));
         model.addAttribute("groups", view.equals("teacher") ? refs.teachers() : refs.classes());
@@ -199,15 +199,21 @@ public class SchedulePlanningController {
         return "redirect:/schedule/generate/draft";
     }
 
-    @PostMapping("/schedule/generate/save")
+    @PostMapping("/schedule/generate/verify")
+    public String verify(@RequestParam String previewToken,Model model,HttpSession session,RedirectAttributes flash){
+        try {var draft=pending(session,previewToken,school(model));generation.verify(draft.plan());session.setAttribute("verifiedScheduleToken",previewToken);flash.addFlashAttribute("success","Полный недельный план проверен. Можно публиковать.");}
+        catch(ScheduleException ex){session.removeAttribute("verifiedScheduleToken");flash.addFlashAttribute("generationError",String.join(" ",ex.getErrors()));}
+        return "redirect:/schedule/generate/draft";
+    }    @PostMapping("/schedule/generate/save")
     public String save(@RequestParam String previewToken, @RequestParam(defaultValue = "false") boolean confirmReplacement,
                        Model model, HttpSession session, RedirectAttributes redirect) {
         try {
             var pending = pending(session, previewToken, school(model));
             if (!confirmReplacement) throw new ScheduleException("Подтвердите применение расписания на выбранный период.");
+            if(!previewToken.equals(session.getAttribute("verifiedScheduleToken")))throw new ScheduleException("Сначала проверьте полный недельный план.");
             int count = generation.save(school(model), pending.plan());
             session.removeAttribute("schoolScheduleDraft");
-            redirect.addFlashAttribute("success", "Расписание всей школы применено. Занятий: " + count + ".");
+            redirect.addFlashAttribute("success", "Расписание всей школы опубликовано. Занятий: " + count + ".");
             return "redirect:/schedule?date=" + pending.plan().start();
         } catch (ScheduleException ex) {
             redirect.addFlashAttribute("generationError", String.join(" ", ex.getErrors()));

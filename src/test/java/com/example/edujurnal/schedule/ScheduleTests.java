@@ -213,7 +213,9 @@ class ScheduleTests {
             var token = java.util.regex.Pattern.compile("name=\"previewToken\" value=\"([^\"]+)\"").matcher(preview.body());
             assertThat(token.find()).isTrue();
             String save = "_csrf=" + csrf(preview.body()) + "&previewToken=" + token.group(1) + "&confirmReplacement=true";
+            assertThat(post(client, "/schedule/generate/verify", save).statusCode()).isEqualTo(302);
             assertThat(post(client, "/schedule/generate/save", save).statusCode()).isEqualTo(302);
+            assertThat(post(client, "/schedule/generate/verify", save).statusCode()).isEqualTo(302);
             assertThat(post(client, "/schedule/generate/save", save).statusCode()).isEqualTo(302);
             assertThat(repository.count()).isEqualTo(12);
             assertThat(post(client, "/schedule/generate/preview", body + "&schoolId=2").statusCode()).isEqualTo(403);

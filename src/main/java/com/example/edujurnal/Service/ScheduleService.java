@@ -27,15 +27,15 @@ public class ScheduleService {
     private final ScheduleCatalog catalog;
     private final ScheduleValidator conflicts;
     private final Validator validator;
-    private final Clock clock;
+    private final Clock clock; private final SchoolNotificationService notifications;
 
     public ScheduleService(LessonRepository lessons, ScheduleCatalog catalog, ScheduleValidator conflicts,
-                           Validator validator, Clock clock) {
+                           Validator validator, Clock clock, SchoolNotificationService notifications) {
         this.lessons = lessons;
         this.catalog = catalog;
         this.conflicts = conflicts;
         this.validator = validator;
-        this.clock = clock;
+        this.clock = clock; this.notifications=notifications;
     }
 
     public LocalDate today() {
@@ -207,8 +207,17 @@ public class ScheduleService {
         catalog.validate(schoolId, form);
         var found = conflicts.checkConflicts(form, id, forDate(schoolId, form.getDate()));
         if (!found.isEmpty()) throw new ScheduleException(found);
+        var before=lesson==null?null:notifications.snapshot(lesson);
         if (lesson == null) lesson = new Lesson(schoolId, form);
         else lesson.apply(form);
-        return lessons.saveAndFlush(lesson);
+        lesson=lessons.saveAndFlush(lesson); if(before!=null)notifications.changed(before,lesson); return lesson;
     }
-}
+    void notifyPublished(Lesson lesson){var snap=notifications.snapshot(lesson);for(long recipient:snap.recipients())notifications.send(recipient,"published:"+lesson.getId(),"Обновлённое расписание: "+snap.description(),snap.link(),null,null);}
+    void notifyReplacement(Lesson lesson){notifications.cancelled(notifications.snapshot(lesson),"replace:"+lesson.getId());}
+    @Transactional public void cancel(long school,long id,long version){
+        catalog.lockSchool(school);var lesson=get(school,id);
+        if(lesson.getVersion()!=version)throw new ScheduleException("Урок изменён. Обновите страницу.");
+        if(!editable(lesson))throw new ScheduleException("Начавшийся урок или урок с учебными записями нельзя отменить.");
+        notifications.cancelled(notifications.snapshot(lesson),"cancel:"+id);
+        lessons.delete(lesson);lessons.flush();
+    }}

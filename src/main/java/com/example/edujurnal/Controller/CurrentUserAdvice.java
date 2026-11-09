@@ -56,10 +56,10 @@ public class CurrentUserAdvice {
         if(role==Role.STUDENT) {
             
             add(items,request,"Домашние задания",home+"#homework","▤");
-            add(items,request,"Объявления",home+"#announcements","◉");
+            
             add(items,request,"Графики",home+"#progress","↗");
         }
-        if(role!=Role.OWNER) add(items,request,"Посещаемость","/attendance","✓"); if(role==Role.PARENT || role==Role.TEACHER) add(items,request,"Уведомления","/notifications","◉"); add(items,request,"Профиль","/profile","○");
+        if(role!=Role.OWNER) add(items,request,"Посещаемость","/attendance","✓"); if(role==Role.PARENT || role==Role.TEACHER) add(items,request,"Уведомления","/notifications","◉"); if(role!=Role.OWNER){add(items,request,"Объявления","/messages","◉");add(items,request,"Замечания","/messages?kind=REMARK","◉");} add(items,request,"Профиль","/profile","○");
         return new Navigation(user.getFullName()==null || user.getFullName().isBlank() ? user.getLogin() : user.getFullName(),user.getLogin(),label,home,List.copyOf(items));
     }
 

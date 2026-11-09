@@ -35,6 +35,8 @@ public class ScheduleGenerationService {
 
     public record Plan(long schoolId, LocalDate start, LocalDate end, List<LessonForm> entries, int lessonCount,
                        Map<Long, Long> replaced, String curriculumRevision, Set<String> pinned) {
+        public int dailyLoad(String view,long id,int day){return (int)entries.stream().filter(e->(view.equals("teacher")?e.getTeacherId()==id:e.getClassId()==id)&&e.getDate().getDayOfWeek().getValue()==day).count();}
+        public int windows(String view,long id){int total=0;for(int day=1;day<=7;day++){final int d=day;var slots=entries.stream().filter(e->(view.equals("teacher")?e.getTeacherId()==id:e.getClassId()==id)&&e.getDate().getDayOfWeek().getValue()==d).map(LessonForm::getLessonNumber).distinct().sorted().toList();if(!slots.isEmpty())total+=slots.getLast()-slots.getFirst()+1-slots.size();}return total;}
         public String day(LessonForm entry) {
             return entry.getDate().getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.forLanguageTag("ru"));
         }
@@ -262,12 +264,36 @@ public class ScheduleGenerationService {
         return form;
     }
 
+    public void verify(Plan plan){
+        if(plan.entries().isEmpty())throw new ScheduleException("Черновик пуст.");
+        if(!curriculum.revision(plan.schoolId()).equals(plan.curriculumRevision()))throw new ScheduleException("Исходные данные изменились. Составьте новый черновик.");
+        if(plan.replaced()!=null){var problems=curriculum.problems(plan.schoolId());if(!problems.isEmpty())throw new ScheduleException(problems);}
+        var settings=curriculum.settings(plan.schoolId());
+        var unavailable=curriculum.unavailable(plan.schoolId());
+        var placed=new ArrayList<Lesson>();
+        var counts=new HashMap<String,Integer>();
+        for(var entry:plan.entries()){
+            catalog.validate(plan.schoolId(),entry);
+            int day=entry.getDate().getDayOfWeek().getValue();
+            if(day>settings.daysPerWeek() || unavailable.stream().anyMatch(u->u.teacherId()==entry.getTeacherId() && u.weekday()==day && u.lessonNumber()==entry.getLessonNumber()))throw new ScheduleException("Урок попадает на недоступное время.");
+            counts.merge(entry.getClassId()+":"+day,1,Integer::sum);
+            var normalized=entry.copy();normalized.setDate(plan.start().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).plusDays(day-1));
+            var errors=validator.checkConflicts(normalized,-1L,placed);if(!errors.isEmpty())throw new ScheduleException(errors);
+            placed.add(new Lesson(plan.schoolId(),normalized));
+        }
+        if(counts.values().stream().anyMatch(c->c>settings.dailyLimit()))throw new ScheduleException("Превышен дневной предел уроков.");
+        if(plan.replaced()!=null)for(var load:curriculum.loads(plan.schoolId())){
+            long count=plan.entries().stream().filter(e->e.getClassId().equals(load.getClassId()) && e.getSubjectId().equals(load.getSubjectId()) && e.getTeacherId().equals(load.getTeacherId())).count();
+            if(count!=load.getWeeklyCount())throw new ScheduleException("Число уроков не совпадает с недельным планом.");
+        }
+    }
     @Transactional
     public int save(long schoolId, Plan plan) {
         if (plan.schoolId() != schoolId) throw new ScheduleException("Нет доступа к этой школе.");
         catalog.lockSchool(schoolId);
         if (!plan.entries().isEmpty() && plan.entries().stream().allMatch(e ->
                 lessons.findByRequestTokenAndSchoolId(e.getRequestToken(), schoolId).isPresent())) return plan.lessonCount();
+        if(plan.curriculumRevision()!=null) verify(plan);
         if (plan.replaced() != null) {
             var current = lessons.findBySchoolIdAndDateBetweenOrderByDateAscStartTimeAscIdAsc(schoolId, plan.start(), plan.end());
             if (!revision(current).equals(plan.replaced()) || !curriculum.revision(schoolId).equals(plan.curriculumRevision()))
@@ -275,6 +301,7 @@ public class ScheduleGenerationService {
             var problems = curriculum.problems(schoolId);
             if (!problems.isEmpty()) throw new ScheduleException(problems);
             if (current.stream().anyMatch(l -> !schedule.editable(l))) throw new ScheduleException("Уроки с оценками или начавшиеся занятия нельзя заменять.");
+            for(var old:current) schedule.notifyReplacement(old);
             lessons.deleteAll(current);
             lessons.flush();
         }
@@ -285,6 +312,7 @@ public class ScheduleGenerationService {
             form.setRepeatUntil(plan.end());
             count += schedule.savePlan(schoolId, null, form).count();
         }
+        if(plan.replaced()!=null && !plan.replaced().isEmpty()) for(var published:lessons.findBySchoolIdAndDateBetweenOrderByDateAscStartTimeAscIdAsc(schoolId,plan.start(),plan.end()))schedule.notifyPublished(published);
         return count;
     }
 

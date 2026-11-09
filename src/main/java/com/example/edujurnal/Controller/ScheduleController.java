@@ -214,4 +214,5 @@ public class ScheduleController {
         return "schedule/form";
     }
 
-}
+    @PreAuthorize("hasRole('DIRECTOR')") @PostMapping("/schedule/{id}/cancel")
+    public String cancel(@PathVariable long id,@RequestParam long version,Model model,RedirectAttributes flash){service.cancel(schoolId(model),id,version);flash.addFlashAttribute("success","Урок отменён. Ученикам и учителю созданы уведомления.");return "redirect:/schedule";}}
