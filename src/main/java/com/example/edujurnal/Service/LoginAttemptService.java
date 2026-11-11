@@ -13,7 +13,7 @@ import java.time.Instant;
 @Service
 public class LoginAttemptService {
     private static final int MAX_ATTEMPTS = 3;
-    private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(5);
+    private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(1);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
