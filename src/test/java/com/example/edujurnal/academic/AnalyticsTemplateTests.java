@@ -61,6 +61,7 @@ class AnalyticsTemplateTests {
 
     @Test void rendersValuesTablesAndBreaksInDynamics() {
         assertThat(render(true)).contains("2.50", "33.33", "100.00", "Математика", "<svg", "<table")
+                .contains("Работ учеников: 1", "Одно ДЗ для каждого ученика считается отдельной работой")
                 .containsOnlyOnce("stroke-width=\"2\"");
     }
 }

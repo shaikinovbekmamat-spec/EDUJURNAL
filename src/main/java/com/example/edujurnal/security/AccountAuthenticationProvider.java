@@ -23,7 +23,7 @@ public class AccountAuthenticationProvider implements AuthenticationProvider {
         var result = loginAttemptService.authenticate(authentication.getName(), password);
         // The transaction has committed before an authentication exception is raised.
         switch (result.status()) {
-            case LOCKED -> throw new LockedException("Аккаунт временно заблокирован. Попробуйте снова через 5 минут.");
+            case LOCKED -> throw new LockedException("Аккаунт временно заблокирован. Попробуйте снова через 1 минуту.");
             case DISABLED -> throw new DisabledException("Аккаунт заблокирован администратором.");
             case BAD_CREDENTIALS -> throw new BadCredentialsException(
                     "Неверный логин или пароль. Осталось попыток: " + result.remainingAttempts());

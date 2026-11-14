@@ -20,9 +20,25 @@ class AccountSequenceMigrationTests {
                 try (Connection connection = source.getConnection(); var sql = connection.createStatement()) {
                     seed(connection);
                     sql.execute("alter table users alter column id restart with " + (advanced ? 5000 : 1));
-                    Flyway.configure().dataSource(source).load().migrate();
+                    var flyway = Flyway.configure().dataSource(source).load();
+                    flyway.migrate();
+                    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("23");
                     assertThat(insertTeacher(connection,"101")).isEqualTo(advanced ? 5000 : 17);
+                    flyway.migrate();
+                    assertThat(insertTeacher(connection,"102")).isEqualTo(advanced ? 5001 : 18);
                 }
+            }
+        }
+    }
+
+    @Test void preservesFirstIdentityOnEmptyH2Table() throws Exception {
+        try (var source = new HikariDataSource()) {
+            source.setJdbcUrl("jdbc:h2:mem:account-sequence-empty-" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1");
+            source.setUsername("sa"); source.setPassword("");
+            Flyway.configure().dataSource(source).load().migrate();
+            try (var connection = source.getConnection(); var sql = connection.createStatement()) {
+                sql.execute("insert into schedule_school values(1,'Test school')");
+                assertThat(insertTeacher(connection,"101")).isEqualTo(1);
             }
         }
     }

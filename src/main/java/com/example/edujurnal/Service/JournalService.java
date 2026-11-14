@@ -16,8 +16,9 @@ public class JournalService {
     private final JdbcTemplate jdbc;
     private final ScheduleAccessService access;
     private final Clock clock;
-    public JournalService(JdbcTemplate jdbc,ScheduleAccessService access,Clock clock) {
-        this.jdbc=jdbc; this.access=access; this.clock=clock;
+    private final SchoolNotificationService notifications;
+    public JournalService(JdbcTemplate jdbc,ScheduleAccessService access,Clock clock,SchoolNotificationService notifications) {
+        this.jdbc=jdbc; this.access=access; this.clock=clock; this.notifications=notifications;
     }
     public record Child(long id,String name,String school) {}
     public record Entry(long lessonId,long studentId,String studentName,String className,String subject,
@@ -125,6 +126,9 @@ public class JournalService {
             throw new ScheduleException("Оценка уже сохранена. Изменение и отмена запрещены.");
         }
         jdbc.update("insert into journal_grade(lesson_id,student_id,teacher_user_id,quarter_id,grade_value) values(?,?,?,?,?)",lessonId,studentId,user.getId(),quarters.getFirst(),value);
+        Long gradeId=jdbc.queryForObject("select id from journal_grade where lesson_id=? and student_id=?",Long.class,lessonId,studentId);
+        String subject=jdbc.queryForObject("select name from schedule_subject where id=?",String.class,subjectId);
+        notifications.send(studentId,"grade:"+gradeId,"Выставлена оценка "+value+" по предмету "+subject,"/journal",null,studentId);
     }
 
     // Методы для классного руководителя

@@ -6,6 +6,7 @@ import com.example.edujurnal.entity.User;
 import com.example.edujurnal.exception.ScheduleException;
 import com.example.edujurnal.service.HomeworkService;
 import com.example.edujurnal.service.ScheduleAccessService;
+import com.example.edujurnal.service.SchoolNotificationService;
 import com.zaxxer.hikari.HikariDataSource;
 import java.io.ByteArrayOutputStream;
 import java.time.*;
@@ -49,6 +50,8 @@ class HomeworkServiceTests {
         jdbc.execute("create table users(id bigint primary key,school_id bigint,student_class_id bigint,role varchar(20),enabled boolean default true)");
         jdbc.execute("create table teaching_assignment(school_id bigint,class_id bigint,subject_id bigint,teacher_id bigint)");
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V20__homework.sql")).execute(source);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V18__school_communications.sql"),
+                new ClassPathResource("db/migration/V22__notification_body_text.sql")).execute(source);
         jdbc.update("insert into schedule_school values(1,'А'),(2,'Б')");
         jdbc.update("insert into schedule_class values(1,1,'7А'),(2,1,'7Б'),(3,2,'8А')");
         jdbc.update("insert into schedule_subject values(1,1,'Математика'),(2,2,'Физика')");
@@ -64,7 +67,7 @@ class HomeworkServiceTests {
         var access = new ScheduleAccessService(null, null) {
             @Override public User currentUser(Authentication auth) { return users.get(auth.getName()); }
         };
-        var proxy = new ProxyFactory(new HomeworkService(jdbc, access, clock));
+        var proxy = new ProxyFactory(new HomeworkService(jdbc, access, clock, new SchoolNotificationService(jdbc)));
         proxy.setProxyTargetClass(true);
         proxy.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(source), new AnnotationTransactionAttributeSource()));
         service = (HomeworkService) proxy.getProxy();
@@ -95,6 +98,12 @@ class HomeworkServiceTests {
         long id = service.create(auth("teacher"), 1, 1, "Задачи", "Решить", LocalDate.now(clock), "ONLINE", token);
         assertThat(service.create(auth("teacher"), 1, 1, "Задачи", "Решить", LocalDate.now(clock), "ONLINE", token)).isEqualTo(id);
         assertThat(count("homework")).isEqualTo(1);
+        assertThat(jdbc.queryForList("select recipient_id from school_notification order by recipient_id", Long.class))
+                .containsExactly(20L, 23L);
+        assertThat(jdbc.queryForList("select body from school_notification", String.class))
+                .containsOnly("Новое домашнее задание: Задачи");
+        assertThat(jdbc.queryForList("select link from school_notification", String.class))
+                .containsOnly("/homework/" + id);
         assertThat(jdbc.queryForList("select student_id from homework_audience order by student_id", Long.class)).containsExactly(20L, 23L);
         assertThatThrownBy(() -> service.create(auth("teacher"), 2, 1, "ДЗ", "Текст", LocalDate.now(clock), "ONLINE"))
                 .isInstanceOf(AccessDeniedException.class);
@@ -116,6 +125,25 @@ class HomeworkServiceTests {
         assertThat(jdbc.queryForObject("select content_type from homework_file", String.class)).isEqualTo("image/png");
         assertThat(jdbc.queryForObject("select submitted_at from homework_submission where id=?", OffsetDateTime.class, second).toInstant())
                 .isEqualTo(clock.instant());
+    }
+
+    @Test void notifiesReviewsWithoutDuplicatesAndKeepsFullComment() {
+        long id = create("ONLINE");
+        service.submit(auth("student"), id, "Ответ", null);
+        String comment = "Я".repeat(2000);
+        service.check(auth("teacher"), id, 20, "RETURNED", comment);
+        service.check(auth("teacher"), id, 20, "RETURNED", comment);
+        assertThat(jdbc.queryForList("select body from school_notification where event_key like 'hw-check:%'", String.class))
+                .containsExactly("Работа возвращена на доработку: " + comment);
+        service.submit(auth("student"), id, "Исправлено", null);
+        service.check(auth("teacher"), id, 20, "ACCEPTED", "");
+        service.check(auth("teacher"), id, 20, "ACCEPTED", "");
+        assertThat(jdbc.queryForList("select body from school_notification where event_key like 'hw-check:%' order by id", String.class))
+                .containsExactly("Работа возвращена на доработку: " + comment, "Работа принята");
+        assertThat(jdbc.queryForList("select recipient_id from school_notification where event_key like 'hw-check:%'", Long.class))
+                .containsOnly(20L);
+        assertThat(jdbc.queryForList("select link from school_notification where event_key like 'hw-check:%'", String.class))
+                .containsOnly("/homework/" + id);
     }
 
     @Test void rejectsForeignStudentsUnassignedTeachersAndWrongModes() {

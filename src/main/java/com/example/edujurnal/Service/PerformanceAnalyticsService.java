@@ -104,6 +104,14 @@ public class PerformanceAnalyticsService {
     }
 
     public Report calculate(Authentication auth, Filter requested) {
+        try {
+            return calculateReport(auth, requested);
+        } catch (DateTimeException ex) {
+            throw new ScheduleException("Не удалось обработать даты периода. Укажите корректные даты и период не более одного года.");
+        }
+    }
+
+    private Report calculateReport(Authentication auth, Filter requested) {
         User user = access.currentUser(auth);
         Filter f = requested == null ? new Filter(null, null, null, null, null, null, Interval.WEEK) : requested;
         Interval interval = f.interval() == null ? Interval.WEEK : f.interval();
@@ -137,7 +145,7 @@ public class PerformanceAnalyticsService {
             averages.add(new Average(s.id(), s.name(), sum.value()));
             List<Sum> sums = buckets.stream().map(b -> sum(entry.getValue(), b)).toList();
             List<Point> points = new ArrayList<>();
-            int lastCompleted = -1;
+            int lastCompared = -1;
             for (int i = 0; i < buckets.size(); i++) {
                 Range b = buckets.get(i);
                 Sum current = sums.get(i);
@@ -145,22 +153,24 @@ public class PerformanceAnalyticsService {
                         && b.to().isBefore(now.toLocalDate());
                 Trend trend = Trend.NO_DATA;
                 BigDecimal change = null;
-                if (complete) lastCompleted = i;
                 if (complete && i > 0 && points.get(i - 1).completed()
                         && current.count >= 3 && sums.get(i - 1).count >= 3) {
                     Sum previous = sums.get(i - 1);
                     int direction = compareChange(current, previous);
                     trend = direction > 0 ? Trend.GROWTH : direction < 0 ? Trend.ATTENTION : Trend.STABLE;
                     change = difference(current, previous);
+                    // Empty or sparse intervals do not replace the last justified conclusion.
+                    lastCompared = i;
                 }
-                points.add(new Point(b.from(), b.to(), current.count, current.average(), complete, trend, change));
+                points.add(new Point(later(b.from(), range.from()), earlier(b.to(), range.to()),
+                        current.count, current.average(), complete, trend, change));
             }
             dynamics.add(new SubjectDynamics(s.id(), s.name(), List.copyOf(points)));
             boolean low = sum.count >= 3 && sum.sum < 3 * sum.count;
-            Point last = lastCompleted < 0 ? null : points.get(lastCompleted);
+            Point last = lastCompared < 0 ? null : points.get(lastCompared);
             boolean falling = last != null && last.trend() == Trend.ATTENTION;
             if (low || falling) {
-                Range previous = falling ? buckets.get(lastCompleted - 1) : null;
+                Range previous = falling ? buckets.get(lastCompared - 1) : null;
                 attention.add(new Attention(s.id(), s.name(), sum.value(),
                         low && falling ? "Средний балл < 3; снижение ≥ 0,5" : low ? "Средний балл < 3" : "Снижение ≥ 0,5",
                         previous == null ? null : previous.from(), previous == null ? null : previous.to(),
@@ -260,6 +270,11 @@ public class PerformanceAnalyticsService {
         if (from == null) from = LocalDate.of(today.getMonthValue() >= 9 ? today.getYear() : today.getYear() - 1, 9, 1);
         if (to == null) to = today;
         if (from.isAfter(to)) throw new ScheduleException("Выбранные периоды не пересекаются.");
+        // Validate before reading grades/attendance or allocating calendar buckets.
+        if (to.plusDays(1).isAfter(from.plusYears(1)))
+            throw new ScheduleException("Период аналитики не должен превышать один год. Сократите диапазон дат.");
+        if (from.getYear() < 1 || to.getYear() > 9999)
+            throw new ScheduleException("Укажите даты в диапазоне от 01.01.0001 до 31.12.9999.");
         // Если родитель видит детей разных школ, выбранный год ограничивает и состав учеников.
         if (yearId != null && jdbc.queryForObject("select count(distinct u.school_id) from users u where " + scope
                 + " and u.school_id<>(select school_id from academic_year where id=?)", Long.class, yearId) > 0)

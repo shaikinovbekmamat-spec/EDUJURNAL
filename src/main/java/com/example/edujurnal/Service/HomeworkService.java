@@ -40,11 +40,14 @@ public class HomeworkService {
     private final JdbcTemplate jdbc;
     private final ScheduleAccessService access;
     private final Clock clock;
+    private final SchoolNotificationService notifications;
 
-    public HomeworkService(JdbcTemplate jdbc, ScheduleAccessService access, Clock clock) {
+    public HomeworkService(JdbcTemplate jdbc, ScheduleAccessService access, Clock clock,
+                           SchoolNotificationService notifications) {
         this.jdbc = jdbc;
         this.access = access;
         this.clock = clock;
+        this.notifications = notifications;
     }
 
     private record Homework(long id, long schoolId, long teacherId, long classId,
@@ -287,6 +290,10 @@ public class HomeworkService {
                 select ?,u.id from users u
                 where u.school_id=? and u.student_class_id=? and u.role='STUDENT'
                 """, id, teacher.getSchool().getId(), classId);
+        for (long studentId : jdbc.queryForList(
+                "select student_id from homework_audience where homework_id=?", Long.class, id))
+            notifications.send(studentId, "hw:" + id + ":" + studentId,
+                    "Новое домашнее задание: " + title, "/homework/" + id, null, studentId);
         return id;
     }
 
@@ -367,6 +374,11 @@ public class HomeworkService {
         if (last.status().equals(status) && Objects.equals(last.comment(), comment)) return;
         jdbc.update("update homework_submission set status=?,teacher_comment=?,checked_at=?,checked_by=? where id=?",
                 status, comment, OffsetDateTime.now(clock), teacher.getId(), last.id());
+        String body = "ACCEPTED".equals(status) ? "Работа принята"
+                : "Работа возвращена на доработку: " + comment;
+        String key = "hw-check:" + last.id() + ":" + status + ":"
+                + UUID.nameUUIDFromBytes(comment.getBytes(StandardCharsets.UTF_8));
+        notifications.send(studentId, key, body, "/homework/" + homeworkId, null, studentId);
     }
 
     @Transactional
