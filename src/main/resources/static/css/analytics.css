@@ -1,0 +1,136 @@
+.analytics{max-width:1280px;min-width:0}.analytics .card{margin:24px 0;padding:24px}
+        .analytics .filters{display:flex;flex-wrap:wrap;gap:16px;align-items:end}.filters label{display:grid;gap:6px;min-width:150px;flex:1}
+        .analytics select,.analytics input{width:100%;min-width:0}.chart-scroll,.table-wrap{overflow-x:auto}
+        .bars{display:flex;gap:24px;align-items:end;padding:16px 8px 0;min-height:230px;border-bottom:1px solid #cbd5e1}
+        .column{flex:1;min-width:110px;max-width:220px;text-align:center}.column .bar{width:60%;margin:6px auto 0;min-height:0;background:#2563eb;border-radius:6px 6px 0 0}
+        .column small{display:block;min-height:42px;padding:8px 0}.track{background:#e2e8f0;height:20px;border-radius:5px;overflow:hidden;margin:8px 0 20px}.fill{background:#d97706;height:100%}
+        .legend{display:flex;flex-wrap:wrap;gap:16px;margin:16px 0}.legend span:before{content:'';display:inline-block;width:12px;height:12px;background:var(--color);margin-right:6px}
+        .present{background:#15803d!important}.absent{background:#dc2626!important}.late{background:#d97706!important}.unmarked{background:#64748b!important}
+        .group-bars{height:160px;display:flex;gap:4px;align-items:end;justify-content:center}.group-bars i{display:block;width:22px;min-height:0}
+        .analytics table{width:100%;border-collapse:collapse;margin-top:20px}.analytics th,.analytics td{padding:10px;text-align:left;border-bottom:1px solid #e2e8f0;white-space:normal}
+        .analytics caption{text-align:left;font-weight:600;padding:8px 0}.analytics svg{display:block;max-width:none}.analytics svg text{font-size:12px;fill:#475569}
+        .empty{padding:28px;background:#f1f5f9;border-radius:8px}.period,.muted{color:#475569}.dynamics-subject{margin-top:24px}
+        @media(max-width:600px){.analytics .card{padding:16px}.analytics th,.analytics td{padding:8px}.filters label{min-width:130px}}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    align-items: start;
+}
+
+.analytics .analytics-grid > .card {
+    min-width: 0;
+    margin: 0;
+    border-radius: 18px;
+    box-shadow: 0 4px 20px rgb(15 23 42 / 5%);
+}
+
+.analytics-card-wide {
+    grid-column: 1 / -1;
+}
+
+.analytics .attendance-bars {
+    min-height: 0;
+    padding-top: 8px;
+}
+
+.attendance-bars .group-bars {
+    height: 180px;
+}
+
+.attention-item {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid var(--warning);
+    border-radius: 12px;
+    background: var(--warning-soft);
+}
+
+.analytics .attention-reason {
+    color: var(--warning);
+    margin: 8px 0 12px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.attention-item .track {
+    margin-bottom: 0;
+}
+
+.attention-item .fill {
+    background: var(--warning);
+}
+
+.homework-column[data-status="Не сдано"] { --status-color: var(--danger); }
+.homework-column[data-status="Отправлено"] { --status-color: var(--brand); }
+.homework-column[data-status="На доработке"] { --status-color: var(--warning); }
+.homework-column[data-status="Принято"] { --status-color: var(--success); }
+
+.homework-column .bar {
+    background: var(--status-color);
+}
+
+.homework-column > small::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--status-color);
+}
+
+@media (max-width: 1000px) {
+    .analytics-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+}
+
+.analytics-values {
+    min-width: 0;
+    margin-top: 20px;
+}
+
+.analytics-values > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.analytics-values > summary::-webkit-details-marker {
+    display: none;
+}
+
+.analytics-values > summary::before {
+    content: '+';
+    flex-shrink: 0;
+    color: #2563eb;
+}
+
+.analytics-values[open] > summary::before {
+    content: '−';
+}
+
+.analytics-values > summary:hover {
+    background: #eff6ff;
+    border-color: #2563eb;
+}
+
+.analytics-values > summary:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+}

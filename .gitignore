@@ -5,6 +5,10 @@ data/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+AGENTS.md
+TZ.docx
+
+
 ### STS ###
 .apt_generated
 .classpath

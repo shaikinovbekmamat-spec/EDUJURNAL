@@ -9,6 +9,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -24,6 +27,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -36,6 +41,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @SpringBootTest
 @ActiveProfiles("test")
 class AccountLockoutTests {
+    @TestConfiguration
+    static class TimeConfig {
+        @Bean @Primary
+        Clock fixedClock() {
+            return Clock.fixed(Instant.parse("2026-11-13T04:00:00Z"), ZoneId.of("Asia/Bishkek"));
+        }
+    }
+
+    @Autowired Clock clock;
     @Autowired UserRepository repository;
     @Autowired UserService users;
     @Autowired AuthenticationManager authenticationManager;
@@ -67,7 +81,7 @@ class AccountLockoutTests {
             assertThat(errorPage).contains(attempt == 3 ? "Аккаунт временно заблокирован" : "Осталось попыток: " + (3 - attempt));
         }
         Instant lockedUntil = savedUser().getLockedUntil();
-        assertThat(lockedUntil).isBetween(Instant.now().plusSeconds(290), Instant.now().plusSeconds(301));
+        assertThat(lockedUntil).isEqualTo(clock.instant().plusSeconds(60));
         MockHttpSession anotherBrowser = new MockHttpSession();
         assertThat(login(anotherBrowser, "correct-password").getResponse().getRedirectedUrl()).isEqualTo("/login?error=true");
         assertThat(anotherBrowser.getAttribute("SPRING_SECURITY_CONTEXT")).isNull();
@@ -170,7 +184,7 @@ class AccountLockoutTests {
     private void setExpiredLock() {
         User locked = savedUser();
         locked.setFailedAttempts(3);
-        locked.setLockedUntil(Instant.now().minusSeconds(1));
+        locked.setLockedUntil(clock.instant().minusSeconds(1));
         repository.saveAndFlush(locked);
     }
 }

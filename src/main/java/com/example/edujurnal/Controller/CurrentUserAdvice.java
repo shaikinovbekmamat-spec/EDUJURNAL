@@ -53,9 +53,10 @@ public class CurrentUserAdvice {
         if(role!=Role.OWNER) add(items,request,role==Role.TEACHER ? "Мой журнал" : role==Role.DIRECTOR ? "Журнал и оценки" : "Оценки","/journal","☆");
         if(role==Role.TEACHER) add(items,request,"Мои дети","/journal?family=true","○");
         add(items,request,"Расписание","/schedule","▦");
+        if(role!=Role.OWNER) add(items,request,"Аналитика","/analytics","↗");
+        if(role==Role.STUDENT || role==Role.TEACHER) add(items,request,"Домашние задания","/homework","▤");
         if(role==Role.STUDENT) {
             
-            add(items,request,"Домашние задания",home+"#homework","▤");
             
             add(items,request,"Графики",home+"#progress","↗");
         }
@@ -70,6 +71,7 @@ public class CurrentUserAdvice {
         if(href.equals("/journal")) active=path.equals("/journal") && !family;
         if(href.equals("/journal?family=true")) active=path.equals("/journal") && family;
         if(href.equals("/journal/today")) active=path.startsWith("/journal/");
+        if(href.equals("/homework")) active=path.equals("/homework") || path.startsWith("/homework/");
         items.add(new NavigationItem(label,href,icon,active));
     }
     @ModelAttribute("currentLogin")

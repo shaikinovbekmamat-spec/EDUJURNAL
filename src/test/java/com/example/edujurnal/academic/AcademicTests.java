@@ -475,6 +475,10 @@ class AcademicTests {
         journal.saveGrade(teacher(),1,student,5);
         assertThatThrownBy(()->journal.saveGrade(teacher(),1,student,4)).hasMessageContaining("Изменение и отмена запрещены");
         assertThat(jdbc.queryForObject("select count(*) from journal_grade",Long.class)).isEqualTo(1);
+        assertThat(jdbc.queryForList("select recipient_id from school_notification where event_key like 'grade:%'",Long.class)).containsExactly(student);
+        assertThat(jdbc.queryForObject("select body from school_notification where event_key like 'grade:%'",String.class))
+                .isEqualTo("Выставлена оценка 5 по предмету Математика");
+        assertThat(jdbc.queryForObject("select link from school_notification where event_key like 'grade:%'",String.class)).isEqualTo("/journal");
         assertThat(journal.view(auth("student",Role.STUDENT),false,null,null,null).entries()).singleElement().satisfies(e->assertThat(e.grade()).isEqualTo(5));
         assertThat(schedule.editable(schedule.get(1,1))).isFalse();
     }

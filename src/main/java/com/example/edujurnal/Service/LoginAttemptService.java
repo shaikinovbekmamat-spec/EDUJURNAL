@@ -9,19 +9,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
 
 @Service
 public class LoginAttemptService {
     private static final int MAX_ATTEMPTS = 3;
-    private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(5);
+    private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(1);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final String dummyPasswordHash;
+    private final Clock clock;
 
-    public LoginAttemptService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public LoginAttemptService(UserRepository userRepository, PasswordEncoder passwordEncoder, Clock clock) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode("unknown-account-password");
     }
 
@@ -37,7 +40,7 @@ public class LoginAttemptService {
             return new LoginResult(Status.DISABLED, null, 0);
         }
 
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         if (user.getLockedUntil() != null) {
             if (now.isBefore(user.getLockedUntil())) {
                 return new LoginResult(Status.LOCKED, null, 0);
@@ -49,7 +52,7 @@ public class LoginAttemptService {
         if (!passwordEncoder.matches(password, user.getPassword())) {
             user.setFailedAttempts(user.getFailedAttempts() + 1);
             if (user.getFailedAttempts() >= MAX_ATTEMPTS) {
-                user.setLockedUntil(Instant.now().plus(LOCKOUT_DURATION));
+                user.setLockedUntil(clock.instant().plus(LOCKOUT_DURATION));
                 return new LoginResult(Status.LOCKED, null, 0);
             }
             return new LoginResult(Status.BAD_CREDENTIALS, null, MAX_ATTEMPTS - user.getFailedAttempts());

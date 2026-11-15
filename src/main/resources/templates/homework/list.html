@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Домашние задания — EduJournal</title><link rel="stylesheet" href="/css/dashboard.css"><link rel="stylesheet" href="/css/navigation.css"><link rel="stylesheet" href="/css/homework.css"></head>
+<body class="app-shell"><a class="skip-link" href="#main">К содержимому</a><aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace homework-workspace" th:with="teacher=${user.role.name() == 'TEACHER'}">
+    <header class="page-header"><div><h1>Домашние задания</h1><p class="subtitle" th:text="${teacher ? 'Ваши задания и ответы учеников' : 'Задания по предметам, ответы и результаты проверки'}"></p></div><a th:if="${teacher}" class="button button-primary" href="/homework/new">Создать задание <span aria-hidden="true">＋</span></a></header>
+    <p th:if="${success}" class="hw-alert hw-alert-success" role="status" th:text="${success}"></p><p th:if="${error}" class="hw-alert hw-alert-error" role="alert" th:text="${error}"></p>
+    <section class="hero"><div class="hero-copy"><p class="eyebrow">УЧЁБА В СВОЁМ ТЕМПЕ</p><h2 th:text="${teacher ? 'От задания — к результату' : 'Следующий шаг к знаниям'}"></h2><p th:text="${teacher ? 'Задавайте работу всему классу, проверяйте ответы и помогайте ученикам доработать решение.' : 'Читайте условия, отправляйте ответы и следите за комментариями учителя. Все версии сохраняются.'}"></p></div><a class="button button-white" href="#assignments">К заданиям <span aria-hidden="true">↓</span></a></section>
+    <section id="assignments" class="hw-list" aria-label="Список домашних заданий">
+        <div th:if="${rows.isEmpty()}" class="card empty-state"><span class="empty-symbol" aria-hidden="true">▤</span><h2 th:text="${pageNumber > 0 ? 'На этой странице заданий нет' : 'Заданий пока нет'}"></h2><p th:text="${teacher ? 'Создайте домашнее задание для назначенного вам класса и предмета.' : 'Назначенные вам задания появятся здесь после публикации учителем.'}"></p><a th:if="${teacher}" class="button button-secondary" href="/homework/new">Создать первое задание</a></div>
+        <article class="card hw-card" th:each="h:${rows}">
+            <div class="card-header"><div><p class="hw-label" th:text="${h.subject}"></p><h2><a th:href="@{/homework/{id}(id=${h.id})}" th:text="${h.title}"></a></h2></div><span th:unless="${teacher}" class="hw-status" th:attr="data-status=${h.status}" th:text="${h.statusLabel()}"></span><span th:if="${teacher}" class="status" th:text="${h.className}"></span></div>
+            <div class="hw-meta"><span th:text="|Сдать до ${#temporals.format(h.dueDate,'dd.MM.yyyy')}|"></span><span th:text="${h.modeLabel()}"></span><span th:text="${h.teacher}"></span></div>
+            <p class="hw-body hw-preview" th:text="${#strings.abbreviate(h.body,240)}"></p>
+            <div class="hw-card-footer"><div th:if="${teacher}" class="hw-counts"><span th:text="|Учеников: ${h.audienceCount}|"></span><span th:if="${h.mode == 'ONLINE'}" th:text="|Отправили: ${h.submittedCount}|"></span><span th:text="|Принято: ${h.acceptedCount}|"></span></div><small th:unless="${teacher}" th:text="|Опубликовано ${#temporals.format(h.publishedAt,'dd.MM.yyyy')}|"></small><a class="text-link" th:href="@{/homework/{id}(id=${h.id})}" th:text="${teacher ? 'Ответы учеников ↗' : 'Открыть задание ↗'}"></a></div>
+        </article>
+    </section>
+    <nav class="hw-pagination" aria-label="Страницы заданий"><a class="button button-secondary" th:if="${pageNumber > 0}" th:href="@{/homework(page=${pageNumber - 1})}">← Назад</a><span th:text="|Страница ${pageNumber + 1}|"></span><a class="button button-secondary" th:if="${more}" th:href="@{/homework(page=${pageNumber + 1})}">Далее →</a></nav>
+    <footer>EduJournal <span>Задания и результаты — в одном месте</span></footer>
+</main></body></html>

@@ -37,6 +37,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/schedule.css", "/schedule.js").permitAll()
                         .requestMatchers("/management", "/management/**").hasAnyRole("OWNER", "DIRECTOR")
                         .requestMatchers("/class-teacher/**").hasRole("TEACHER")
+                        .requestMatchers("/homework", "/homework/**").hasAnyRole("TEACHER", "STUDENT")
                         .requestMatchers(HttpMethod.POST, "/journal/**").hasRole("TEACHER")
                         .requestMatchers("/journal", "/journal/**").hasAnyRole("DIRECTOR", "TEACHER", "STUDENT", "PARENT")
                         .requestMatchers(HttpMethod.POST, "/schedule", "/schedule/**").hasRole("DIRECTOR")

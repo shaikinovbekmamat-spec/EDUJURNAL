@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org"><body>
+<div th:fragment="view(answer)" class="hw-answer">
+    <div class="hw-meta"><span th:text="|Версия ${answer.version} · ${#temporals.format(answer.submittedAt,'dd.MM.yyyy, HH:mm')}|"></span><span th:if="${answer.checkedAt != null}" th:text="|Проверено ${#temporals.format(answer.checkedAt,'dd.MM.yyyy, HH:mm')}|"></span></div>
+    <p class="hw-body" th:unless="${#strings.isEmpty(answer.text)}" th:text="${answer.text}"></p>
+    <ul class="hw-files" th:unless="${answer.files.isEmpty()}" aria-label="Файлы ответа"><li th:each="f:${answer.files}"><a th:href="@{/homework/files/{id}(id=${f.id})}"><span th:text="|↓ ${f.name}|"></span><small th:text="|${#numbers.formatDecimal(f.size / 1024.0,1,1)} КБ|"></small></a></li></ul>
+    <div class="hw-comment" th:unless="${#strings.isEmpty(answer.comment)}"><h3>Комментарий учителя</h3><p class="hw-body" th:text="${answer.comment}"></p></div>
+</div>
+</body></html>

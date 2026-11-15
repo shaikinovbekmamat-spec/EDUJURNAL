@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Аналитика успеваемости - EduJournal</title>
+    <link rel="stylesheet" href="/css/academic.css"><link rel="stylesheet" href="/css/navigation.css">
+    <link rel="stylesheet" href="/css/analytics.css">
+</head>
+<body class="app-shell">
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main class="workspace analytics">
+    <header><h1>Аналитика успеваемости</h1><p>Текущие оценки, посещаемость и результаты домашних заданий.</p></header>
+    <p class="muted">Показатели пересчитываются при каждом открытии страницы. Сохранённые оценки учитываются сразу; посещаемость - после начала урока.</p>
+    <p class="muted" th:if="${user != null and user.role.name() == 'TEACHER'}">Здесь показаны ученики класса, в котором вы назначены классным руководителем.</p>
+    <p class="empty" th:if="${user != null and user.role.name() == 'TEACHER' and page.students.isEmpty()}">Вам не назначен класс для аналитики или в нём пока нет учеников. Назначение классного руководителя выполняет директор.</p>
+    <form class="filters card" method="get" th:action="@{/analytics}">
+        <label>Ученик<select name="studentId"><option value="">Все доступные ученики</option><option th:each="s:${page.students}" th:value="${s.id}" th:selected="${filter.studentId == s.id}" th:text="${s.label}"></option></select></label>
+        <label>Учебный год<select name="yearId"><option value="">По датам / текущий период</option><option th:each="y:${page.years}" th:value="${y.id}" th:selected="${filter.yearId == y.id}" th:text="${y.label}"></option></select></label>
+        <label>Четверть<select name="quarterId"><option value="">Все четверти</option><option th:each="q:${page.quarters}" th:value="${q.id}" th:selected="${filter.quarterId == q.id}" th:text="${q.label}"></option></select></label>
+        <label>Предмет<select name="subject"><option value="">Все предметы</option><option th:each="s:${page.subjects}" th:value="${s.id}" th:selected="${filter.subjectId == s.id}" th:text="${s.label}"></option></select></label>
+        <label>С даты<input type="date" name="from" min="0001-01-01" max="9999-12-31" th:value="${filter.from}"></label>
+        <label>По дату<input type="date" name="to" min="0001-01-01" max="9999-12-31" th:value="${filter.to}"></label>
+        <label>Интервал<select name="interval"><option value="WEEK" th:selected="${filter.interval.name() == 'WEEK'}">Неделя</option><option value="MONTH" th:selected="${filter.interval.name() == 'MONTH'}">Месяц</option></select></label>
+        <button type="submit">Применить</button><a href="/analytics">Сбросить</a>
+        <p class="muted">Даты ограничивают выбранный год и четверть. Период - не более одного года. После смены года примените фильтр, затем выберите четверть. Для детей из разных школ сначала выберите ученика.</p>
+    </form>
+    <p class="period" th:fragment="period" th:text="|Период: ${#temporals.format(report.from,'dd.MM.yyyy')} - ${#temporals.format(report.to,'dd.MM.yyyy')}|"></p>
+
+    <div class="analytics-grid">
+    <section class="card" th:with="hasData=${gradesHasData}" aria-labelledby="average-title">
+        <h2 id="average-title">Средний балл</h2><p th:replace="~{analytics/view :: period}"></p>
+        <p class="empty" th:unless="${hasData}">Нет данных</p>
+        <th:block th:if="${hasData}">
+            <p th:text="|Общий средний балл: ${report.average.label()} · Оценок: ${report.average.count}|"></p>
+            <p class="muted">Синие столбцы - средний балл по предмету, шкала 0-5. Итоговые оценки не включены.</p>
+            <div class="chart-scroll"><div class="bars" role="img" aria-label="Средние баллы по предметам; точные значения приведены ниже">
+                <div class="column" th:each="a:${report.averages}"><strong th:text="${a.average.label()}"></strong><div class="bar" th:style="|height:${a.average.value * 36}px|"></div><small th:text="${a.subject}"></small></div>
+            </div></div>
+            <details class="analytics-values"><summary>Показать точные значения (таблица)</summary><div class="table-wrap"><table><caption>Средние баллы по предметам</caption><thead><tr><th>Предмет</th><th>Средний балл</th><th>Число оценок</th></tr></thead><tbody><tr th:each="a:${report.averages}"><td th:text="${a.subject}"></td><td th:text="${a.average.label()}"></td><td th:text="${a.average.count}"></td></tr></tbody></table></div></details>
+        </th:block>
+    </section>
+
+    <section class="card" th:with="hasData=${gradesHasData}" aria-labelledby="attention-title">
+        <h2 id="attention-title">Предметы внимания</h2><p th:replace="~{analytics/view :: period}"></p>
+        <p class="empty" th:unless="${hasData}">Нет данных</p>
+        <th:block th:if="${hasData}">
+            <p th:if="${report.attention.isEmpty()}">Предметов внимания нет.</p>
+            <th:block th:unless="${report.attention.isEmpty()}">
+                <p class="muted">Оранжевые столбцы - средний балл, шкала 0-5. Причина: среднее &lt; 3 при минимум 3 оценках или снижение ≥ 0,5 в последней паре соседних завершённых интервалов с достаточным числом оценок. Пустые интервалы не снимают ранее подтверждённое снижение.</p>
+                <div class="attention-item" th:each="a:${report.attention}"><strong th:text="|${a.subject}: ${a.average.label()}|"></strong><p class="attention-reason"><span aria-hidden="true">⚠️</span> <strong th:text="${a.reason}"></strong></p><div class="track" role="img" th:aria-label="|${a.subject}: ${a.average.label()}|"><div class="fill" th:style="|width:${a.average.value * 20}%|"></div></div></div>
+                <details class="analytics-values"><summary>Показать точные значения (таблица)</summary><div class="table-wrap"><table><caption>Причины внимания</caption><thead><tr><th>Предмет</th><th>Среднее / оценок</th><th>Причина</th><th>Предыдущий период</th><th>Текущий период</th><th>Изменение</th></tr></thead><tbody><tr th:each="a:${report.attention}"><td th:text="${a.subject}"></td><td th:text="|${a.average.label()} / ${a.average.count}|"></td><td><strong class="attention-reason" th:text="${a.reason}"></strong></td><td th:text="${a.previousFrom == null ? '-' : a.previousFrom + ' - ' + a.previousTo}"></td><td th:text="|${a.currentFrom} - ${a.currentTo}|"></td><td th:text="${a.change == null ? '-' : a.change}"></td></tr></tbody></table></div></details>
+            </th:block>
+        </th:block>
+    </section>
+
+    <section class="card analytics-card-wide" th:with="hasData=${gradesHasData}" aria-labelledby="dynamics-title">
+        <h2 id="dynamics-title">Динамика</h2><p th:replace="~{analytics/view :: period}"></p>
+        <p class="empty" th:unless="${hasData}">Нет данных</p>
+        <th:block th:if="${hasData}">
+            <p class="muted">Синяя линия - средний балл (0-5); пустые интервалы разрывают линию. Даты интервалов ограничены выбранным периодом; неполные интервалы не участвуют в выводе. Вывод: два соседних завершённых интервала, минимум по 3 оценки. Рост ≥ 0,5; внимание ≤ −0,5.</p>
+            <article class="dynamics-subject" th:each="d:${report.dynamics}">
+                <h3 th:text="${d.subject}"></h3>
+                <div class="chart-scroll"><svg xmlns="http://www.w3.org/2000/svg" height="245" th:attr="width=${d.points.size() * 70 + 60}" role="img" th:aria-label="|Динамика: ${d.subject}. Данные в таблице ниже.|">
+                    <line x1="30" y1="180" th:attr="x2=${d.points.size() * 70 + 30}" y2="180" stroke="#94a3b8"/>
+                    <text x="4" y="35">5</text><text x="4" y="180">0</text>
+                    <th:block th:each="p,i:${d.points}">
+                        <line th:if="${i.index > 0 and p.average != null and d.points[i.index - 1].average != null}" th:attr="x1=${(i.index - 1) * 70 + 50},y1=${180 - d.points[i.index - 1].average * 30},x2=${i.index * 70 + 50},y2=${180 - p.average * 30}" stroke="#2563eb" stroke-width="2"/>
+                        <circle th:if="${p.average != null}" th:attr="cx=${i.index * 70 + 50},cy=${180 - p.average * 30}" r="4" fill="#2563eb"><title th:text="|${p.from}: ${p.label()}|"></title></circle>
+                        <text th:if="${p.average != null}" th:attr="x=${i.index * 70 + 50},y=${170 - p.average * 30}" text-anchor="middle" th:text="${p.label()}"></text>
+                        <text th:attr="x=${i.index * 70 + 50}" y="205" text-anchor="middle" th:text="${#temporals.format(p.from,'dd.MM.yy')}"></text>
+                    </th:block>
+                </svg></div>
+                <details class="analytics-values"><summary>Показать точные значения (таблица)</summary><div class="table-wrap"><table><caption th:text="|Динамика: ${d.subject}|"></caption><thead><tr><th>Интервал</th><th>Среднее</th><th>Оценок</th><th>Завершён</th><th>Изменение</th><th>Вывод</th></tr></thead><tbody>
+                <tr th:each="p:${d.points}"><td th:text="|${p.from} - ${p.to}|"></td><td th:text="${p.label()}"></td><td th:text="${p.count}"></td><td th:text="${p.completed ? 'Да' : 'Нет'}"></td><td th:text="${p.change == null ? '-' : p.change}"></td><td th:switch="${p.trend.name()}"><span th:case="'GROWTH'">Рост</span><span th:case="'ATTENTION'">Внимание</span><span th:case="'STABLE'">Без заметного изменения</span><span th:case="*">Недостаточно данных для вывода</span></td></tr>
+                </tbody></table></div></details>
+            </article>
+        </th:block>
+    </section>
+
+    <section class="card" th:with="hasData=${attendanceHasData}" aria-labelledby="attendance-title">
+        <h2 id="attendance-title">Посещаемость</h2><p th:replace="~{analytics/view :: period}"></p>
+        <p class="empty" th:unless="${hasData}">Нет данных</p>
+        <th:block th:if="${hasData}">
+            <div class="legend"><span style="--color:#15803d">Присутствовал</span><span style="--color:#dc2626">Отсутствовал</span><span style="--color:#d97706">Опоздал</span><span style="--color:#64748b">Не отмечено</span></div>
+            <p class="muted">Число начавшихся уроков по интервалам. Доля пропусков исключает неотмеченные уроки.</p>
+            <div class="chart-scroll"><div class="bars attendance-bars" role="img" aria-label="Посещаемость по интервалам; точные значения в таблице">
+                <div class="column" th:each="a:${report.attendance}"><div class="group-bars"><i class="present" th:style="|height:${a.present * 100.0 / attendanceMax}%|"></i><i class="absent" th:style="|height:${a.absent * 100.0 / attendanceMax}%|"></i><i class="late" th:style="|height:${a.late * 100.0 / attendanceMax}%|"></i><i class="unmarked" th:style="|height:${a.unmarked * 100.0 / attendanceMax}%|"></i></div><small th:text="${#temporals.format(a.from,'dd.MM.yy')}"></small></div>
+            </div></div>
+            <details class="analytics-values"><summary>Показать точные значения (таблица)</summary><div class="table-wrap"><table><caption>Посещаемость по периодам</caption><thead><tr><th>Период</th><th>Присутствовал</th><th>Отсутствовал</th><th>Опоздал</th><th>Не отмечено</th><th>Доля пропусков, %</th></tr></thead><tbody><tr th:each="a:${report.attendance}"><td th:text="|${a.from} - ${a.to}|"></td><td th:text="${a.present}"></td><td th:text="${a.absent}"></td><td th:text="${a.late}"></td><td th:text="${a.unmarked}"></td><td th:text="${a.absencePercent.label()}"></td></tr></tbody></table></div></details>
+        </th:block>
+    </section>
+
+    <section class="card" th:with="hasData=${homeworkHasData}" aria-labelledby="homework-title">
+        <h2 id="homework-title">Результаты ДЗ</h2><p th:replace="~{analytics/view :: period}"></p>
+        <p class="empty" th:unless="${hasData}">Нет данных</p>
+        <th:block th:if="${hasData}">
+            <p th:text="|Доля принятых: ${report.homework.acceptedPercent.label()}% · Работ учеников: ${report.homework.acceptedPercent.count}|"></p>
+            <p class="muted">Цвет столбца соответствует последнему статусу работы: красный - не сдано, синий - отправлено, оранжевый - на доработке, зелёный - принято. Одно ДЗ для каждого ученика считается отдельной работой. Отбор по дате публикации, включая бумажные работы.</p>
+            <div class="chart-scroll"><div class="bars" role="img" aria-label="Число работ учеников по статусам; точные значения в таблице"><div class="column homework-column" th:each="s:${report.homework.statuses()}" th:attr="data-status=${s.key}"><strong th:text="${s.value}"></strong><div class="bar" th:style="|height:${s.value * 180.0 / homeworkMax}px|"></div><small th:text="${s.key}"></small></div></div></div>
+            <details class="analytics-values"><summary>Показать точные значения (таблица)</summary><div class="table-wrap"><table><caption>Последние статусы домашних заданий</caption><thead><tr><th>Статус</th><th>Количество</th></tr></thead><tbody><tr th:each="s:${report.homework.statuses()}"><td th:text="${s.key}"></td><td th:text="${s.value}"></td></tr></tbody></table></div></details>
+        </th:block>
+    </section>
+    </div>
+</main>
+<script>
+    const yearSelect = document.querySelector('select[name="yearId"]');
+    const quarterSelect = document.querySelector('select[name="quarterId"]');
+    yearSelect.addEventListener('change', () => {
+        quarterSelect.value = '';
+        quarterSelect.disabled = true;
+    });
+</script>
+</body></html>

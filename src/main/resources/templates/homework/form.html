@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Новое домашнее задание — EduJournal</title><link rel="stylesheet" href="/css/dashboard.css"><link rel="stylesheet" href="/css/navigation.css"><link rel="stylesheet" href="/css/homework.css"><script src="/js/homework.js" defer></script></head>
+<body class="app-shell"><a class="skip-link" href="#main">К содержимому</a><aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace homework-workspace">
+    <a class="hw-back" href="/homework">← Домашние задания</a><header class="page-header"><div><h1>Новое домашнее задание</h1><p class="subtitle">Задание получат все ученики выбранного класса.</p></div></header>
+    <p th:if="${error}" class="hw-alert hw-alert-error" role="alert" th:text="${error}"></p>
+    <section th:if="${choices.isEmpty()}" class="card empty-state"><span class="empty-symbol" aria-hidden="true">▤</span><h2>Нет назначенных классов и предметов</h2><p>Обратитесь к директору, чтобы вам назначили класс и предмет.</p><a class="button button-secondary" href="/homework">К заданиям</a></section>
+    <form th:unless="${choices.isEmpty()}" th:object="${form}" th:action="@{/homework}" method="post" class="card hw-fields hw-form-card">
+        <input type="hidden" th:field="*{token}">
+        <label class="hw-wide">Заголовок<input th:field="*{title}" maxlength="200" required placeholder="Например, уравнения: задания 12–15"></label>
+        <label>Класс<select th:field="*{classId}" required data-homework-class><option value="">Выберите класс</option><option th:each="c:${classes}" th:value="${c.key}" th:text="${c.value}"></option></select></label>
+        <label>Предмет<select name="subjectId" required data-homework-subject><option value="">Выберите предмет</option><option th:each="c:${choices}" th:value="${c.subjectId}" th:attr="data-class=${c.classId}" th:selected="${form.subjectId == c.subjectId and form.classId == c.classId}" th:text="|${c.subject} · ${c.className}|"></option></select></label>
+        <label class="hw-wide">Условие задания<textarea th:field="*{body}" rows="8" maxlength="10000" required placeholder="Опишите, что нужно выполнить и как оформить ответ."></textarea></label>
+        <label>Срок сдачи<input type="date" th:field="*{dueDate}" required></label>
+        <label>Способ выполнения<select th:field="*{mode}" required><option value="ONLINE">На сайте — текст и/или файлы</option><option value="NOTEBOOK">В тетради — отметить сдачу вручную</option></select></label>
+        <p class="hw-hint hw-wide">Для ответа на сайте доступны JPG, PNG, PDF и DOCX: до 5 файлов по 10 МБ. Отправка после срока разрешена без штрафа.</p>
+        <div class="hw-actions hw-wide"><button class="button button-primary" type="submit">Опубликовать задание</button><a class="button button-secondary" href="/homework">Отмена</a></div>
+    </form>
+</main></body></html>
