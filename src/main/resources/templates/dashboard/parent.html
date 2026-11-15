@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Кабинет родителя — EduJournal</title><link rel="stylesheet" href="/css/dashboard.css"><link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}">
+<a class="skip-link" href="#main">К содержимому</a>
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace">
+    <header class="page-header"><div><h1>Добрый день</h1><p class="subtitle">Кабинет родителя</p></div></header>
+    <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy"><p class="eyebrow">Успеваемость детей</p><h2 id="hero-title">Отслеживайте результаты ваших детей</h2><p>Просматривайте оценки детей, связь с которыми подтверждена школой.</p></div>
+        <a class="button button-white" href="/journal">Оценки детей <span aria-hidden="true">↗</span></a>
+    </section>
+    <div class="stats">
+        <section class="card stat"><span class="stat-icon blue" aria-hidden="true">☆</span><p>Оценки</p><strong class="stat-value">Дети</strong><small>Успеваемость по предметам</small></section>
+        <section class="card stat"><span class="stat-icon green" aria-hidden="true">▦</span><p>Расписание</p><strong class="stat-value">Уроки</strong><small>Расписание школы</small></section>
+        <section class="card stat"><span class="stat-icon amber" aria-hidden="true">○</span><p>Связи</p><strong class="stat-value">Семья</strong><small>Подтверждённые связи</small></section>
+        <section class="card stat"><span class="stat-icon blue" aria-hidden="true">◉</span><p>Объявления</p><strong class="stat-value">Новости</strong><small>Раздел пока не подключён</small></section>
+    </div>
+    <div class="content-grid">
+        <section class="card">
+            <div class="card-header"><div><h2>Быстрые действия</h2><p class="muted">Основные задачи родителя</p></div></div>
+            <div style="display:grid;gap:12px;">
+                <a href="/journal" class="button" style="justify-content:center;">Оценки детей</a>
+                <a href="/schedule" class="button button-secondary" style="justify-content:center;">Расписание школы</a>
+            </div>
+        </section>
+        <section class="card">
+            <div class="card-header"><h2>Информация</h2></div>
+            <p class="muted" style="line-height:1.8;">Просматривайте оценки детей, связь с которыми подтверждена школой.</p>
+            <div style="margin-top:20px;padding:16px;background:var(--brand-soft);border-radius:10px;">
+                <p style="margin:0;font-size:13px;color:var(--brand);"><strong>Вы вошли как:</strong> <span th:text="${currentLogin}"></span></p>
+                <p style="margin:6px 0 0;font-size:13px;color:var(--brand);"><strong>Ваша роль:</strong> Родитель</p>
+            </div>
+        </section>
+    </div>
+    <footer>EduJournal <span>Следите за успеваемостью детей</span></footer>
+</main>
+</body>
+</html>

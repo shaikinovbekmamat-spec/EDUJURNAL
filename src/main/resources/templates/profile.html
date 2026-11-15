@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Профиль — EduJournal</title>
+    <link rel="stylesheet" href="/css/academic.css"><link rel="stylesheet" href="/css/navigation.css">
+</head>
+<body class="app-shell">
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main class="workspace">
+    <h1>Профиль</h1><p class="muted">Ваша учётная запись и безопасность</p>
+    <section class="card"><h2 th:text="${navigation.name}"></h2>
+        <p>Логин: <strong th:text="${navigation.login}"></strong></p>
+        <p>Роль: <span th:text="${navigation.roleLabel}"></span></p>
+    </section>
+    <p th:if="${success}" th:text="${success}" class="success" role="status"></p>
+    <p th:if="${error}" th:text="${error}" class="notice danger" role="alert"></p>
+    <section class="card"><h2>Изменение пароля</h2>
+        <p id="password-help" class="muted">Минимум 8 символов, не более 72 байт UTF-8. Новый пароль должен отличаться от текущего.</p>
+        <form th:action="@{/profile/password}" method="post" class="fields">
+            <label class="wide">Текущий пароль<input type="password" name="currentPassword" autocomplete="current-password" required></label>
+            <label>Новый пароль<input type="password" name="newPassword" autocomplete="new-password" minlength="8" maxlength="72" aria-describedby="password-help" required></label>
+            <label>Повторите новый пароль<input type="password" name="confirmation" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+            <div class="wide"><button type="submit">Изменить пароль</button></div>
+        </form>
+    </section>
+</main>
+</body></html>

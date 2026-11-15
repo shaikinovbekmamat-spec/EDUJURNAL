@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Кабинет учителя — EduJournal</title><link rel="stylesheet" href="/css/dashboard.css"><link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}">
+<a class="skip-link" href="#main">К содержимому</a>
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace">
+    <header class="page-header"><div><h1>Добрый день</h1><p class="subtitle">Кабинет учителя</p></div></header>
+    <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy"><p class="eyebrow">Ваша работа</p><h2 id="hero-title">Управление учебным процессом</h2><p>Выставляйте оценки, отслеживайте успеваемость учеников и просматривайте расписание.</p></div>
+        <a class="button button-white" href="/journal/today">Выставить оценки <span aria-hidden="true">↗</span></a>
+    </section>
+    <div class="stats">
+        <section class="card stat"><span class="stat-icon blue" aria-hidden="true">☆</span><p>Журнал</p><strong class="stat-value">Оценки</strong><small>Просмотр и редактирование</small></section>
+        <section class="card stat"><span class="stat-icon green" aria-hidden="true">✎</span><p>Выставить оценки</p><strong class="stat-value">За урок</strong><small>Текущий день</small></section>
+        <section class="card stat"><span class="stat-icon amber" aria-hidden="true">○</span><p>Мои дети</p><strong class="stat-value">Семья</strong><small>Успеваемость детей</small></section>
+        <section class="card stat"><span class="stat-icon blue" aria-hidden="true">▦</span><p>Расписание</p><strong class="stat-value">Уроки</strong><small>Расписание школы</small></section>
+    </div>
+    <div class="content-grid">
+        <section class="card">
+            <div class="card-header"><div><h2>Быстрые действия</h2><p class="muted">Основные задачи учителя</p></div></div>
+            <div style="display:grid;gap:12px;">
+                <a href="/journal/today" class="button" style="justify-content:center;">Выставить оценки за урок</a>
+                <a href="/journal" class="button button-secondary" style="justify-content:center;">Открыть журнал</a>
+                <a href="/schedule" class="button button-secondary" style="justify-content:center;">Посмотреть расписание</a>
+            </div>
+        </section>
+        <section class="card">
+            <div class="card-header"><h2>Информация</h2></div>
+            <p class="muted" style="line-height:1.8;">Откройте журнал назначенных классов и предметов, чтобы выставить оценки за сегодняшний день.</p>
+            <div style="margin-top:20px;padding:16px;background:var(--brand-soft);border-radius:10px;">
+                <p style="margin:0;font-size:13px;color:var(--brand);"><strong>Вы вошли как:</strong> <span th:text="${currentLogin}"></span></p>
+                <p style="margin:6px 0 0;font-size:13px;color:var(--brand);"><strong>Ваша роль:</strong> Учитель</p>
+            </div>
+        </section>
+    </div>
+    <footer>EduJournal <span>Управление учебным процессом</span></footer>
+</main>
+</body>
+</html>

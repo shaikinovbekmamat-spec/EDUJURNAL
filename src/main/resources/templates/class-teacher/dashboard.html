@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Главная — Классный руководитель — EduJournal</title>
+    <link rel="stylesheet" href="/css/dashboard.css">
+<link rel="stylesheet" href="/css/navigation.css"></head>
+<body th:classappend="${navigation != null ? 'app-shell' : ''}">
+<a class="skip-link" href="#main">К содержимому</a>
+<aside th:replace="~{academic/layout :: sidebar}"></aside>
+<main id="main" class="workspace">
+    <header class="page-header">
+        <div>
+            <h1>Добрый день</h1>
+            <p class="subtitle">Кабинет классного руководителя</p>
+        </div>
+    </header>
+
+    <div th:if="${managedClass == null}">
+        <section class="card">
+            <div class="empty-state">
+                <span class="empty-symbol" aria-hidden="true">⌂</span>
+                <h3>Вы не назначены классным руководителем</h3>
+                <p>Обратитесь к директору школы для назначения на класс. После назначения здесь появится информация о вашем классе.</p>
+                <a href="/journal" class="button button-secondary">Открыть журнал учителя</a>
+            </div>
+        </section>
+    </div>
+
+    <div th:if="${managedClass != null}">
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <p class="eyebrow">Ваш класс</p>
+                <h2 id="hero-title" th:text="${managedClass.class_name + ' класс'}">Класс</h2>
+                <p th:text="${'Учеников в классе: ' + studentsCount}">Информация о классе</p>
+            </div>
+            <a class="button button-white" href="/class-teacher/journal">Открыть журнал класса <span aria-hidden="true">↗</span></a>
+        </section>
+
+        <div class="stats">
+            <section class="card stat">
+                <span class="stat-icon blue" aria-hidden="true">☆</span>
+                <p>Учеников в классе</p>
+                <strong class="stat-value" th:text="${studentsCount != null ? studentsCount : '—'}">—</strong>
+                <small>Активных учеников</small>
+            </section>
+            <section class="card stat">
+                <span class="stat-icon green" aria-hidden="true">↗</span>
+                <p>Средний балл класса</p>
+                <strong class="stat-value" th:text="${averageGrade != null ? #numbers.formatDecimal(averageGrade, 1, 2) : '—'}">—</strong>
+                <small th:if="${averageGrade != null}">по всем предметам</small>
+                <small th:if="${averageGrade == null}">пока нет оценок</small>
+            </section>
+            <section class="card stat">
+                <span class="stat-icon amber" aria-hidden="true">○</span>
+                <p>Родители</p>
+                <strong class="stat-value">Связи</strong>
+                <small>Управление доступом</small>
+            </section>
+            <section class="card stat">
+                <span class="stat-icon blue" aria-hidden="true">✎</span>
+                <p>Оценки</p>
+                <strong class="stat-value">Журнал</strong>
+                <small>Просмотр и анализ</small>
+            </section>
+        </div>
+
+        <div class="content-grid">
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Быстрые действия</h2>
+                        <p class="muted">Основные задачи классного руководителя</p>
+                    </div>
+                </div>
+                <div style="display:grid;gap:12px;">
+                    <a href="/class-teacher/journal" class="button" style="justify-content:center;">Журнал класса</a>
+                    <a href="/class-teacher/accounts" class="button button-secondary" style="justify-content:center;">Создать учетную запись</a>
+                    <a href="/class-teacher/parents" class="button button-secondary" style="justify-content:center;">Управление родителями</a>
+                    <a href="/journal/today" class="button button-secondary" style="justify-content:center;">Выставить оценки за урок</a>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Информация</h2>
+                </div>
+                <p class="muted" style="line-height:1.8;">Как классный руководитель вы можете:</p>
+                <ul style="margin:12px 0;padding-left:20px;line-height:2;">
+                    <li>Просматривать журнал класса с оценками и средними баллами</li>
+                    <li>Создавать учетные записи для учеников и родителей</li>
+                    <li>Подтверждать связи родителей с учениками</li>
+                    <li>Отзывать доступ родителей при необходимости</li>
+                    <li>Выставлять оценки по своим предметам</li>
+                </ul>
+                <div style="margin-top:20px;padding:16px;background:var(--brand-soft);border-radius:10px;">
+                    <p style="margin:0;font-size:13px;color:var(--brand);">
+                        <strong>Ваш класс:</strong> <span th:text="${managedClass.class_name}"></span>
+                    </p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <footer>EduJournal <span>Классный руководитель</span></footer>
+</main>
+</body>
+</html>
