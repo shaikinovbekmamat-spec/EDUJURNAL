@@ -44,7 +44,8 @@ public class FinalGradeService {
             args.add(user.getTeacherId());
         }
         if(selectedStudent!=null){sql+=" and u.id=?";args.add(selectedStudent);} if(subject!=null && !subject.isBlank()){sql+=" and s.name=?";args.add(subject);} sql+=" order by c.name,s.name,u.full_name,u.id";
-        return jdbc.query(sql,(r,n)->new FinalMark(r.getLong("id"),r.getString("full_name"),r.getLong("subject_id"),r.getString("subject"),r.getString("class_name"),r.getObject("grade_value",Integer.class),view.teacher() && r.getObject("grade_value")==null),args.toArray());
+        boolean archived=jdbc.queryForObject("select archived from academic_year where id=?",Boolean.class,view.yearId());
+        return jdbc.query(sql,(r,n)->new FinalMark(r.getLong("id"),r.getString("full_name"),r.getLong("subject_id"),r.getString("subject"),r.getString("class_name"),r.getObject("grade_value",Integer.class),view.teacher() && !archived && r.getObject("grade_value")==null),args.toArray());
     }
     private int period(long year,Long quarter) {
         if(quarter==null) return 0;
@@ -60,6 +61,7 @@ public class FinalGradeService {
         long school=user.getSchool().getId();
         jdbc.queryForList("select id from schedule_school where id=? for update",school);
         if(jdbc.queryForObject("select count(*) from academic_year where id=? and school_id=?",Long.class,yearId,school)==0) throw new AccessDeniedException("Нет доступа к этому учебному году.");
+        AcademicYearArchive.requireOpenYear(jdbc,yearId);
         int number=period(yearId,quarterId);
         List<Long> classes=jdbc.queryForList("""
             select u.student_class_id from users u join teaching_assignment a on a.class_id=u.student_class_id and a.school_id=u.school_id

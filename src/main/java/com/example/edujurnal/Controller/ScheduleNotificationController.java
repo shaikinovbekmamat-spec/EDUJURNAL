@@ -15,11 +15,11 @@ public class ScheduleNotificationController {
         this.messages = messages;
     }
 
-    @GetMapping("/notifications/schedule")
+    @GetMapping(value={"/notifications", "/notifications/schedule"}, params="type!=attendance")
     public String list(Authentication auth, @RequestParam(defaultValue="false") boolean unread,
                        @RequestParam(defaultValue="0") int page, Model model) {
         page = Math.max(0, Math.min(page, 100000));
-        var rows = messages.scheduleNotifications(auth, unread, page);
+        var rows = messages.notifications(auth, unread, page);
         model.addAttribute("notifications", rows.stream().limit(20).toList());
         model.addAttribute("more", rows.size() > 20);
         model.addAttribute("pageNumber", page);
@@ -27,13 +27,13 @@ public class ScheduleNotificationController {
         return "academic/schedule-notifications";
     }
 
-    @PostMapping("/notifications/schedule/{id}/read")
+    @PostMapping({"/notifications/messages/{id}/read", "/notifications/schedule/{id}/read"})
     public String read(Authentication auth, @PathVariable long id,
                        @RequestParam(defaultValue="false") boolean unread,
                        @RequestParam(defaultValue="0") int page, RedirectAttributes redirect) {
         messages.read(auth, id);
         redirect.addAttribute("unread", unread);
         redirect.addAttribute("page", Math.max(0, Math.min(page, 100000)));
-        return "redirect:/notifications/schedule";
+        return "redirect:/notifications";
     }
 }

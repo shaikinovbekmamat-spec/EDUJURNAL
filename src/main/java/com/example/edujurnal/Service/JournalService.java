@@ -112,6 +112,7 @@ public class JournalService {
         if(lessons.isEmpty()) throw new AccessDeniedException("Нет доступа к этому уроку.");
         Map<String,Object> l=lessons.getFirst();
         LocalDate date=((java.sql.Date)l.get("lesson_date")).toLocalDate();
+        AcademicYearArchive.requireOpenDate(jdbc,user.getSchool().getId(),date);
         long classId=((Number)l.get("class_id")).longValue();
         long subjectId=((Number)l.get("subject_id")).longValue();
         if(!date.equals(today())) throw new ScheduleException("Оценку можно выставить только за урок текущего дня по времени Кыргызстана.");

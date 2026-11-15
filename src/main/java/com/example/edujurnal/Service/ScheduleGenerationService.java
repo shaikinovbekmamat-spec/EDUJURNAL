@@ -10,6 +10,7 @@ import com.example.edujurnal.util.BellSchedule;
 import com.example.edujurnal.util.AcademicTerm;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.time.LocalDate;
 import java.time.format.TextStyle;
@@ -38,7 +39,7 @@ public class ScheduleGenerationService {
         public int dailyLoad(String view,long id,int day){return (int)entries.stream().filter(e->(view.equals("teacher")?e.getTeacherId()==id:e.getClassId()==id)&&e.getDate().getDayOfWeek().getValue()==day).count();}
         public int windows(String view,long id){int total=0;for(int day=1;day<=7;day++){final int d=day;var slots=entries.stream().filter(e->(view.equals("teacher")?e.getTeacherId()==id:e.getClassId()==id)&&e.getDate().getDayOfWeek().getValue()==d).map(LessonForm::getLessonNumber).distinct().sorted().toList();if(!slots.isEmpty())total+=slots.getLast()-slots.getFirst()+1-slots.size();}return total;}
         public String day(LessonForm entry) {
-            return entry.getDate().getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.forLanguageTag("ru"));
+            return entry.getDate().getDayOfWeek().getDisplayName(TextStyle.FULL, LocaleContextHolder.getLocale());
         }
         public List<LessonForm> cell(String view, long id, int weekday, int number) {
             return entries.stream().filter(e -> (view.equals("teacher") ? e.getTeacherId() == id : e.getClassId() == id) && e.getDate().getDayOfWeek().getValue() == weekday

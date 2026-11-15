@@ -49,4 +49,7 @@ public class User {
     @Column(name = "student_class_id")
     private Long studentClassId;
 
+    @Column(name = "language", nullable = false)
+    private String language = "ru";
+
 }

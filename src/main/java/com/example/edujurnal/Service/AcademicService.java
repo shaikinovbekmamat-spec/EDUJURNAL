@@ -35,6 +35,16 @@ public class AcademicService {
         return school.getId();
     }
 
+    @Transactional
+    public School createSchool(Authentication auth, String name) {
+        User actor = access.currentUser(auth);
+        if (actor.getRole() != Role.OWNER) throw new AccessDeniedException("Только владелец может создавать школы.");
+        if (name == null || name.trim().isEmpty()) throw new ScheduleException("Введите название школы.");
+        School school = new School();
+        school.setName(name.trim());
+        return entityManager.merge(school);
+    }
+
     private long directorSchool(Authentication auth) {
         User actor = access.currentUser(auth);
         if (actor.getRole() != Role.DIRECTOR) throw new AccessDeniedException("Только директор управляет учебным процессом.");
@@ -49,7 +59,14 @@ public class AcademicService {
     }
     public List<Map<String,Object>> accounts(Authentication auth, Long schoolId) {
         long school = managedSchool(auth, schoolId);
-        return jdbc.queryForList("select u.id,u.login,u.full_name,u.role,u.student_class_id,u.teacher_id,c.name as class_name from users u left join schedule_class c on c.id=u.student_class_id where u.school_id=? order by u.full_name,u.login", school);
+        User actor = access.currentUser(auth);
+
+        // Owner видит только директоров, Director видит всех
+        if (actor.getRole() == Role.OWNER) {
+            return jdbc.queryForList("select u.id,u.login,u.full_name,u.role,u.enabled,u.student_class_id,u.teacher_id,c.name as class_name from users u left join schedule_class c on c.id=u.student_class_id where u.school_id=? and u.role='DIRECTOR' order by u.full_name,u.login", school);
+        }
+
+        return jdbc.queryForList("select u.id,u.login,u.full_name,u.role,u.enabled,u.student_class_id,u.teacher_id,c.name as class_name from users u left join schedule_class c on c.id=u.student_class_id where u.school_id=? order by u.full_name,u.login", school);
     }
     public List<Map<String,Object>> links(Authentication auth, Long schoolId) {
         long school = managedSchool(auth, schoolId);
@@ -177,6 +194,7 @@ public class AcademicService {
         long school=directorSchool(auth);
         catalog.lockSchool(school);
         require("academic_year",id,school);
+        AcademicYearArchive.requireOpenYear(jdbc,id);
         String title=name(value,100);
         validateYearDates(start,end,starts,ends);
         if(jdbc.queryForObject("select count(*) from academic_year where school_id=? and id<>? and (lower(name)=lower(?) or (starts_on<=? and ends_on>=?))",Long.class,school,id,title,end,start)>0)
@@ -195,6 +213,7 @@ public class AcademicService {
         long school=directorSchool(auth);
         catalog.lockSchool(school);
         require("academic_year",id,school);
+        AcademicYearArchive.requireOpenYear(jdbc,id);
         if(yearHasGrades(id)) throw new ScheduleException("Учебный год содержит оценки и не может быть удалён.");
         if(jdbc.queryForObject("select count(*) from schedule_lesson l join academic_year y on y.school_id=l.school_id and l.lesson_date between y.starts_on and y.ends_on where y.id=?",Long.class,id)>0)
             throw new ScheduleException("В датах учебного года есть уроки. Удаление запрещено, чтобы сохранить учебный календарь.");

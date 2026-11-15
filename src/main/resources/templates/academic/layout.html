@@ -1,5 +1,6 @@
 ﻿<!doctype html><html lang="ru" xmlns:th="http://www.thymeleaf.org"><body>
 <aside th:fragment="sidebar" th:if="${navigation != null}" class="app-sidebar">
+    <script src="/js/language.js" defer></script>
     <a class="app-brand" th:href="${navigation.home}"><span class="app-brand-mark">E</span>EduJournal</a>
     <nav aria-label="Основная навигация">
         <a th:each="item : ${navigation.items}" th:href="${item.href}" th:attr="aria-current=${item.active ? 'page' : null}"><span aria-hidden="true" th:text="${item.icon}"></span><span th:text="${item.label}"></span></a>

@@ -36,3 +36,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Local database backups
+/backups/
+*.pgpass

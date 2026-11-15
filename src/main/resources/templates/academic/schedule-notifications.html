@@ -2,7 +2,7 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Уведомления о расписании — EduJournal</title>
+    <title>Уведомления — EduJournal</title>
     <link rel="stylesheet" href="/css/academic.css">
     <link rel="stylesheet" href="/css/navigation.css">
     <link rel="stylesheet" href="/css/journal-browser.css">
@@ -10,9 +10,9 @@
 <body class="app-shell records-app">
 <aside th:replace="~{academic/layout :: sidebar}"></aside>
 <main class="workspace records-workspace">
-    <header class="records-header"><div><h1>Уведомления</h1><p>Изменения и отмены уроков. Новые сообщения — в начале списка.</p></div></header>
+    <header class="records-header"><div><h1>Уведомления</h1><p>Оценки, домашние задания, объявления и изменения уроков. Новые сообщения — в начале списка.</p></div></header>
     <nav class="browse-steps" aria-label="Виды уведомлений">
-        <a href="/notifications/schedule" aria-current="page">Расписание</a>
+        <a href="/notifications" aria-current="page">Учебные события</a>
         <a href="/notifications?type=attendance">Посещаемость</a>
     </nav>
     <form method="get" class="filters browser-filters">
@@ -21,23 +21,23 @@
             <option value="true" th:selected="${unread}">Только непрочитанные</option>
         </select></label><button>Показать</button>
     </form>
-    <p class="empty" th:if="${#lists.isEmpty(notifications)}" th:text="${unread ? 'Непрочитанных уведомлений нет.' : 'Уведомлений об изменениях расписания пока нет.'}"></p>
+    <p class="empty" th:if="${#lists.isEmpty(notifications)}" th:text="${unread ? 'Непрочитанных уведомлений нет.' : 'Уведомлений пока нет.'}"></p>
     <article class="notification-row" th:each="n:${notifications}" th:classappend="${n.read_at == null ? 'unread' : ''}">
         <div>
             <small th:text="${n.read_at == null ? 'Не прочитано' : 'Прочитано'}"></small>
             <p th:text="${n.body}"></p>
-            <a th:href="${n.link}">Открыть расписание</a>
+            <a th:href="${n.link}">Открыть</a>
         </div>
-        <form th:if="${n.read_at == null}" th:action="@{/notifications/schedule/{id}/read(id=${n.id})}" method="post">
+        <form th:if="${n.read_at == null}" th:action="@{/notifications/messages/{id}/read(id=${n.id})}" method="post">
             <input type="hidden" name="unread" th:value="${unread}">
             <input type="hidden" name="page" th:value="${pageNumber}">
             <button>Отметить прочитанным</button>
         </form>
     </article>
     <nav class="pagination" aria-label="Страницы уведомлений">
-        <a th:if="${pageNumber > 0}" th:href="@{/notifications/schedule(unread=${unread},page=${pageNumber - 1})}">Назад</a>
+        <a th:if="${pageNumber > 0}" th:href="@{/notifications(unread=${unread},page=${pageNumber - 1})}">Назад</a>
         <span th:text="|Страница ${pageNumber + 1}|"></span>
-        <a th:if="${more}" th:href="@{/notifications/schedule(unread=${unread},page=${pageNumber + 1})}">Далее</a>
+        <a th:if="${more}" th:href="@{/notifications(unread=${unread},page=${pageNumber + 1})}">Далее</a>
     </nav>
 </main>
 </body>

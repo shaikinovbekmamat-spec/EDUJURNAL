@@ -25,6 +25,7 @@ public class SchoolMessageService {
   token=text(token,100);title=text(title,200);body=text(body,10000);
   var existing=jdbc.queryForList("select id from school_message where request_token=? and author_id=?",Long.class,token,u.getId());if(!existing.isEmpty())return existing.getFirst();
   if(date==null)date=LocalDate.now(clock);if(date.isAfter(LocalDate.now(clock)))throw new ScheduleException("Дата не может быть в будущем.");
+  AcademicYearArchive.requireOpenDate(jdbc,school,date);
   Set<Long> recipients=new HashSet<>();
   if("REMARK".equals(kind)){
    if(u.getRole()!=Role.TEACHER || student==null)throw new AccessDeniedException("Замечание создаёт учитель ученику своего класса.");
@@ -64,12 +65,15 @@ public class SchoolMessageService {
  public List<Map<String,Object>> list(Authentication auth,String kind,int page){var u=access.currentUser(auth);var a=new ArrayList<>(Arrays.asList(args(u)));a.add(kind);a.add(Math.max(0,Math.min(page,100000))*20);return jdbc.queryForList("select m.*,u.full_name as author from school_message m join users u on u.id=m.author_id where "+allowed()+" and m.kind=? order by m.created_at desc,m.id desc limit 21 offset ?",a.toArray());}
  public Map<String,Object> get(Authentication auth,long id){var u=access.currentUser(auth);var a=new ArrayList<>(Arrays.asList(args(u)));a.add(id);var rows=jdbc.queryForList("select m.*,u.full_name as author from school_message m join users u on u.id=m.author_id where "+allowed()+" and m.id=?",a.toArray());if(rows.isEmpty())throw new AccessDeniedException("Запись недоступна.");return rows.getFirst();}
  @Transactional public void correct(Authentication auth,long id,long version,String body,String reason){var u=author(auth);body=text(body,10000);reason=text(reason,1000);var row=get(auth,id);if(!row.get("kind").equals("REMARK")||((Number)row.get("author_id")).longValue()!=u.getId())throw new AccessDeniedException("Исправление доступно автору замечания.");
+  jdbc.queryForList("select id from schedule_school where id=? for update",u.getSchool().getId());
+  AcademicYearArchive.requireOpenDate(jdbc,u.getSchool().getId(),((java.sql.Date)row.get("event_date")).toLocalDate());
   if(jdbc.update("update school_message set body=?,version=version+1 where id=? and version=?",body,id,version)==0)throw new ScheduleException("Замечание уже изменено. Обновите страницу.");
   jdbc.update("insert into message_history(message_id,actor_id,old_body,new_body,reason) values(?,?,?,?,?)",id,u.getId(),row.get("body"),body,reason);
  }
  public List<Map<String,Object>> history(Authentication auth,long id){get(auth,id);return jdbc.queryForList("select h.*,u.full_name from message_history h join users u on u.id=h.actor_id where message_id=? order by h.id desc",id);}
- public List<Map<String,Object>> scheduleNotifications(Authentication auth,boolean unread,int page) {
-  return jdbc.queryForList("select n.* from school_notification n where n.recipient_id=? and n.message_id is null"+(unread ? " and n.read_at is null" : "")+" order by n.created_at desc,n.id desc limit 21 offset ?",access.currentUser(auth).getId(),Math.max(0,Math.min(page,100000))*20);
+ public List<Map<String,Object>> notifications(Authentication auth,boolean unread,int page) {
+  var u=access.currentUser(auth);
+  return jdbc.queryForList("select n.* from school_notification n where n.recipient_id=? and (n.message_id is null or n.student_id=? or exists(select 1 from parent_student p where p.parent_id=? and p.student_id=n.student_id))"+(unread ? " and n.read_at is null" : "")+" order by n.created_at desc,n.id desc limit 21 offset ?",u.getId(),u.getId(),u.getId(),Math.max(0,Math.min(page,100000))*20);
  }
  public List<Map<String,Object>> inbox(Authentication auth,int page){var u=access.currentUser(auth);return jdbc.queryForList("select n.* from school_notification n where n.recipient_id=? and (n.message_id is null or n.student_id=? or exists(select 1 from parent_student p where p.parent_id=? and p.student_id=n.student_id)) order by n.created_at desc,n.id desc limit 21 offset ?",u.getId(),u.getId(),u.getId(),Math.max(0,Math.min(page,100000))*20);}
  @Transactional public void read(Authentication auth,long id){if(jdbc.update("update school_notification set read_at=current_timestamp where id=? and recipient_id=?",id,access.currentUser(auth).getId())==0)throw new AccessDeniedException("Уведомление недоступно.");}
@@ -77,6 +81,8 @@ public class SchoolMessageService {
  public List<Map<String,Object>> lessonChoices(Authentication auth,Long classId){if(classId==null)return List.of();var u=author(auth);assigned(u,classId);return jdbc.queryForList("select l.id,l.lesson_date,l.start_time,s.name from schedule_lesson l join schedule_subject s on s.id=l.subject_id where l.class_id=? and l.school_id=? and l.teacher_id=? order by l.lesson_date desc,l.start_time desc limit 100",classId,u.getSchool().getId(),u.getTeacherId());}
  @Transactional public void attachments(Authentication auth,long id,org.springframework.web.multipart.MultipartFile[] files){
   var row=get(auth,id);if(((Number)row.get("author_id")).longValue()!=access.currentUser(auth).getId())throw new AccessDeniedException("Нет доступа.");
+  jdbc.queryForList("select id from schedule_school where id=? for update",row.get("school_id"));
+  AcademicYearArchive.requireOpenDate(jdbc,((Number)row.get("school_id")).longValue(),((java.sql.Date)row.get("event_date")).toLocalDate());
   if(files==null)return;var valid=Arrays.stream(files).filter(f->!f.isEmpty()).toList();if(valid.size()>5)throw new ScheduleException("Можно приложить не более пяти файлов.");
   if(jdbc.queryForObject("select count(*) from message_attachment where message_id=?",Long.class,id)>0)return;
   for(var file:valid){if(file.getSize()>10*1024*1024)throw new ScheduleException("Файл превышает 10 МБ.");

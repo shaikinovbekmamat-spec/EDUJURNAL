@@ -6,7 +6,7 @@
     <a class="hw-back" href="/homework">← Домашние задания</a>
     <header class="page-header"><div><h1 th:text="${h.title}"></h1><p class="subtitle" th:text="|${h.subject} · ${h.className} · ${h.teacher}|"></p></div><span th:unless="${detail.teacher}" class="hw-status" th:attr="data-status=${h.status}" th:text="${h.statusLabel()}"></span></header>
     <p th:if="${success}" class="hw-alert hw-alert-success" role="status" th:text="${success}"></p><p th:if="${error}" class="hw-alert hw-alert-error" role="alert" th:text="${error}"></p>
-    <article class="card hw-instructions"><div class="card-header"><h2>Условие задания</h2><span class="status" th:text="${h.modeLabel()}"></span></div><div class="hw-meta"><span th:text="|Срок: ${#temporals.format(h.dueDate,'dd.MM.yyyy')}|"></span><span th:text="|Опубликовано ${#temporals.format(h.publishedAt,'dd.MM.yyyy, HH:mm')}|"></span></div><p class="hw-body" th:text="${h.body}"></p></article>
+    <p th:if="${detail.archived}" class="hw-alert">Учебный год в архиве. Задание и ответы доступны только для просмотра.</p><article class="card hw-instructions"><div class="card-header"><h2>Условие задания</h2><span class="status" th:text="${h.modeLabel()}"></span></div><div class="hw-meta"><span th:text="|Срок: ${#temporals.format(h.dueDate,'dd.MM.yyyy')}|"></span><span th:text="|Опубликовано ${#temporals.format(h.publishedAt,'dd.MM.yyyy, HH:mm')}|"></span></div><p class="hw-body" th:text="${h.body}"></p></article>
 
     <section th:if="${detail.teacher}" class="hw-section" aria-labelledby="answers-title">
         <div class="card-header"><div><h2 id="answers-title">Работы учеников</h2><p class="muted" th:text="|Адресатов: ${h.audienceCount} · Принято: ${h.acceptedCount}|"></p></div></div>
@@ -17,19 +17,19 @@
                 <p th:if="${work.latest == null}" class="hw-hint">Ученик ещё не отправил ответ.</p>
                 <th:block th:if="${work.latest != null}">
                     <div th:replace="~{homework/answer :: view(${work.latest})}"></div>
-                    <form th:action="@{/homework/{id}/check(id=${h.id})}" method="post" class="hw-check" data-homework-check>
+                    <form th:unless="${detail.archived}" th:action="@{/homework/{id}/check(id=${h.id})}" method="post" class="hw-check" data-homework-check>
                         <input type="hidden" name="studentId" th:value="${work.studentId}"><input type="hidden" name="version" th:value="${work.latest.version}">
                         <label>Комментарий к проверке<textarea name="comment" rows="3" maxlength="2000" placeholder="Для возврата на доработку укажите, что нужно исправить." th:text="${rejectedStudent != null and rejectedStudent == work.studentId ? rejectedComment : work.latest.comment}"></textarea></label>
                         <div class="hw-actions"><button class="button button-success" name="status" value="ACCEPTED" type="submit">Принять</button><button class="button button-warning" name="status" value="RETURNED" type="submit">Вернуть на доработку</button></div>
                     </form>
                 </th:block>
             </th:block>
-            <th:block th:if="${h.mode == 'NOTEBOOK'}"><p class="hw-hint" th:text="${work.status == 'ACCEPTED' ? 'Бумажная работа сдана.' : 'После получения тетради отметьте работу как сданную.'}"></p><form th:unless="${work.status == 'ACCEPTED'}" class="hw-paper-form" th:action="@{/homework/{id}/paper(id=${h.id})}" method="post"><input type="hidden" name="studentId" th:value="${work.studentId}"><button class="button button-success" type="submit">Отметить как сданную</button></form></th:block>
+            <th:block th:if="${h.mode == 'NOTEBOOK'}"><p class="hw-hint" th:text="${work.status == 'ACCEPTED' ? 'Бумажная работа сдана.' : 'После получения тетради отметьте работу как сданную.'}"></p><form th:unless="${detail.archived or work.status == 'ACCEPTED'}" class="hw-paper-form" th:action="@{/homework/{id}/paper(id=${h.id})}" method="post"><input type="hidden" name="studentId" th:value="${work.studentId}"><button class="button button-success" type="submit">Отметить как сданную</button></form></th:block>
         </article>
     </section>
 
     <th:block th:unless="${detail.teacher}">
-        <section th:if="${h.mode == 'ONLINE'}" class="card hw-submission" aria-labelledby="submit-title">
+        <section th:if="${h.mode == 'ONLINE' and !detail.archived}" class="card hw-submission" aria-labelledby="submit-title">
             <div class="card-header"><div><h2 id="submit-title" th:text="${detail.history.isEmpty() ? 'Отправить ответ' : 'Отправить новую версию'}"></h2><p class="muted">Текст, файлы или всё вместе. Отправка после срока разрешена.</p></div></div>
             <form th:action="@{/homework/{id}/submit(id=${h.id})}" method="post" enctype="multipart/form-data" class="hw-fields">
                 <label class="hw-wide">Ваш ответ<textarea name="text" rows="6" maxlength="10000" placeholder="Напишите решение или пояснения к приложенным файлам." th:text="${answerText}"></textarea></label>

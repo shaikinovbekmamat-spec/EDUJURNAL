@@ -18,21 +18,35 @@ public class AcademicController {
     private final ScheduleAccessService access;
     private final ScheduleCatalog catalog;
     private final CurriculumService curriculum;
-    public AcademicController(AcademicService service,ScheduleAccessService access,ScheduleCatalog catalog, CurriculumService curriculum) {
+    private final AcademicYearArchive archive;
+    public AcademicController(AcademicService service,ScheduleAccessService access,ScheduleCatalog catalog, CurriculumService curriculum, AcademicYearArchive archive) {
         this.service=service; this.access=access; this.catalog=catalog; this.curriculum=curriculum;
+        this.archive=archive;
     }
     @GetMapping("/management")
     public String management(Authentication auth,@RequestParam(required=false) Long schoolId,Model model) {
         var user=access.currentUser(auth);
         model.addAttribute("user",user);
+        model.addAttribute("isOwner", user.getRole()==Role.OWNER);
+
         if(user.getRole()==Role.OWNER && schoolId==null) {
             model.addAttribute("schools",access.availableSchools(user));
             return "academic/schools";
         }
+
         long school=service.managedSchool(auth,schoolId);
         model.addAttribute("schoolId",school);
         model.addAttribute("school",access.school(user,school));
         model.addAttribute("director",user.getRole()==Role.DIRECTOR);
+
+        // Owner видит только директоров, а не всю информацию школы
+        if(user.getRole()==Role.OWNER) {
+            model.addAttribute("accounts",service.accounts(auth,school));
+            model.addAttribute("accountRoles",List.of("DIRECTOR")); // Только директора
+            return "academic/owner-management";
+        }
+
+        // Директор видит всё
         model.addAttribute("catalog",catalog.forSchool(school));
         model.addAttribute("classWorkloads",curriculum.summary(school));
         model.addAttribute("teacherWorkloads",curriculum.teacherSummary(school));
@@ -122,9 +136,22 @@ public class AcademicController {
     public String deleteYear(Authentication auth,@PathVariable long id,RedirectAttributes flash) {
         service.deleteYear(auth,id); return done(flash,null);
     }
+    @PostMapping("/management/years/{id}/archive")
+    public String archiveYear(Authentication auth,@PathVariable long id,RedirectAttributes flash) {
+        archive.archive(auth,id);
+        flash.addFlashAttribute("success","Учебный год архивирован. История сохранена и доступна для просмотра.");
+        return "redirect:/management#years";
+    }
     @PostMapping("/management/assignments")
     public String assign(Authentication auth,@RequestParam long classId,@RequestParam long subjectId,@RequestParam long teacherId,RedirectAttributes flash) {
         service.assign(auth,classId,subjectId,teacherId); return done(flash,null);
+    }
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('OWNER')")
+    @PostMapping("/management/schools")
+    public String createSchool(Authentication auth,@RequestParam String name,RedirectAttributes flash) {
+        service.createSchool(auth,name);
+        flash.addFlashAttribute("success","Школа создана.");
+        return "redirect:/management";
     }
     @PostMapping("/management/accounts")
     public String account(Authentication auth,@RequestParam(required=false) Long schoolId,@RequestParam String login,@RequestParam String password,@RequestParam String fullName,@RequestParam Role role,@RequestParam(required=false) Long classId,@RequestParam(required=false) Long teacherId,RedirectAttributes flash) {

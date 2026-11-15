@@ -20,7 +20,7 @@ class AccountSequenceMigrationTests {
                 try (Connection connection = source.getConnection(); var sql = connection.createStatement()) {
                     seed(connection);
                     sql.execute("alter table users alter column id restart with " + (advanced ? 5000 : 1));
-                    var flyway = Flyway.configure().dataSource(source).load();
+                    var flyway = Flyway.configure().dataSource(source).target("23").load();
                     flyway.migrate();
                     assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("23");
                     assertThat(insertTeacher(connection,"101")).isEqualTo(advanced ? 5000 : 17);

@@ -48,6 +48,7 @@ class HomeworkServiceTests {
         jdbc = new JdbcTemplate(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1__manual_schedule.sql")).execute(source);
         jdbc.execute("create table users(id bigint primary key,school_id bigint,student_class_id bigint,role varchar(20),enabled boolean default true)");
+        jdbc.execute("create table academic_year(id bigint primary key,school_id bigint,starts_on date,ends_on date,archived boolean default false)");
         jdbc.execute("create table teaching_assignment(school_id bigint,class_id bigint,subject_id bigint,teacher_id bigint)");
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V20__homework.sql")).execute(source);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V18__school_communications.sql"),

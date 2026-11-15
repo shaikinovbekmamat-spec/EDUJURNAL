@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class OwnerController {
     @GetMapping("/owner/dashboard")
     public String dashboard() {
-        return "redirect:/schedule";
+        // Owner управляет школами и директорами, не просматривает расписание
+        return "redirect:/management";
     }
 }

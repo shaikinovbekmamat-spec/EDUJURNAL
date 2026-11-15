@@ -10,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 @Service
 @Transactional(readOnly = true)
@@ -63,14 +64,17 @@ public class StudentDashboardService {
                     user.getSchool().getId(), user.getStudentClassId(), today, user.getId());
         }
         Lesson next = lessons.stream().filter(l -> l.end().isAfter(now)).findFirst().orElse(null);
-        String nextLabel = next == null ? "ВАШ УЧЕБНЫЙ ДЕНЬ" : next.start().isAfter(now)
-                ? "СЛЕДУЮЩИЙ УРОК · ЧЕРЕЗ " + Math.max(1, Duration.between(now, next.start()).toMinutes()) + " МИН" : "СЕЙЧАС ИДЁТ УРОК";
+        boolean kyrgyz = "ky".equals(LocaleContextHolder.getLocale().getLanguage());
+        String nextLabel = next == null ? (kyrgyz ? "СИЗДИН ОКУУ КҮНҮҢҮЗ" : "ВАШ УЧЕБНЫЙ ДЕНЬ") : next.start().isAfter(now)
+                ? (kyrgyz ? "КИЙИНКИ САБАК · " + Math.max(1, Duration.between(now, next.start()).toMinutes()) + " МҮНӨТТӨН КИЙИН"
+                : "СЛЕДУЮЩИЙ УРОК · ЧЕРЕЗ " + Math.max(1, Duration.between(now, next.start()).toMinutes()) + " МИН")
+                : (kyrgyz ? "АЗЫР САБАК ӨТҮП ЖАТАТ" : "СЕЙЧАС ИДЁТ УРОК");
         return new View(user.getFullName() == null || user.getFullName().isBlank() ? user.getLogin() : user.getFullName(),
                 user.getLogin(), user.getSchool().getName(), className,
-                today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.forLanguageTag("ru"))),
+                today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", LocaleContextHolder.getLocale())),
                 quarter.map(JournalService.Period::name).orElse("Учебный год"), average,
                 grades.stream().map(JournalService.Entry::subject).distinct().count(), grades.stream().limit(5).toList(),
                 points, lessons, next, nextLabel);
     }
-    private static String decimal(double value) { return String.format(Locale.forLanguageTag("ru"), "%.2f", value); }
+    private static String decimal(double value) { return String.format(LocaleContextHolder.getLocale(), "%.2f", value); }
 }

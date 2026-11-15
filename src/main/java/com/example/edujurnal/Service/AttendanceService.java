@@ -37,6 +37,7 @@ public class AttendanceService {
   var page=lessons.page(auth,lesson);
   if(page.students().stream().noneMatch(s->s.id()==student)) throw new AccessDeniedException("Ученик не входит в состав урока.");
   if(page.lesson().date().isAfter(journal.today() )) throw new ScheduleException("Нельзя отмечать будущий урок.");
+  AcademicYearArchive.requireOpenDate(jdbc,user.getSchool().getId(),page.lesson().date());
   var old=mark(lesson,student);
   if(old.status().equals(status) && old.reason().equals(reason)) return;
   if(old.version()!=version) throw new ScheduleException("Отметка уже изменена. Обновите страницу и повторите действие.");
