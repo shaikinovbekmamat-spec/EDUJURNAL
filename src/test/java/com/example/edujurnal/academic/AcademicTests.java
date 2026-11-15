@@ -68,6 +68,39 @@ class AcademicTests {
         createYear(auth("director2",Role.DIRECTOR),"2030–2031",List.of("2030-09-01","2030-11-01","2031-01-10","2031-04-01"));
         lesson(1,1,TODAY); lesson(2,2,TODAY);
     }
+    @Test void scheduleNotificationsRenderAndCanOnlyBeReadByRecipient() throws Exception {
+        schedule.cancel(1,1,schedule.get(1,1).getVersion());
+        var rows=messages.scheduleNotifications(auth("student",Role.STUDENT),true,0);
+        assertThat(rows).hasSize(1);
+        long id=((Number)rows.getFirst().get("id")).longValue();
+        assertThat(messages.scheduleNotifications(teacher(),true,0)).hasSize(1);
+        assertThat(messages.scheduleNotifications(auth("student2",Role.STUDENT),false,0)).isEmpty();
+        try(var client=login("student")) {
+            assertThat(get(client,"/notifications").headers().firstValue("Location").orElseThrow()).endsWith("/notifications/schedule");
+            var page=get(client,"/notifications/schedule?unread=true");
+            assertThat(page.statusCode()).isEqualTo(200);
+            assertThat(page.body()).contains("Урок отменён", "Математика", "Открыть расписание", "Отметить прочитанным");
+            assertThat(post(client,"/notifications/schedule/"+id+"/read","").statusCode()).isEqualTo(403);
+            assertThat(post(client,"/notifications/schedule/"+id+"/read","_csrf="+csrf(page.body())+"&unread=true").statusCode()).isEqualTo(302);
+            assertThat(get(client,"/notifications/schedule?unread=true").body()).contains("Непрочитанных уведомлений нет.").doesNotContain("Урок отменён");
+            assertThat(get(client,"/notifications/schedule").body()).contains("Урок отменён", "Прочитано");
+        }
+        try(var client=login("student2")) {
+            var page=get(client,"/notifications/schedule");
+            assertThat(page.body()).doesNotContain("Урок отменён");
+            assertThat(post(client,"/notifications/schedule/"+id+"/read","_csrf="+csrf(page.body())).statusCode()).isEqualTo(403);
+        }
+    }
+
+    @Test void scheduleNotificationsPaginateAndFilterUnread() {
+        for(int i=0;i<22;i++) jdbc.update("insert into school_notification(recipient_id,event_key,body,link) values(?,?,?,?)",student,"lesson:test:"+i,"Изменение "+i,"/schedule");
+        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,0)).hasSize(21);
+        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,1)).hasSize(2);
+        var first=messages.scheduleNotifications(auth("student",Role.STUDENT),false,0).getFirst();
+        messages.read(auth("student",Role.STUDENT),((Number)first.get("id")).longValue());
+        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),true,1)).hasSize(1);
+    }
+
     void createYear(Authentication actor,String name,List<String> starts) {
         academic.createYear(actor,name,LocalDate.of(2030,9,1),LocalDate.of(2031,8,31),starts.stream().map(LocalDate::parse).toList(),List.of("2030-10-31","2030-12-31","2031-03-31","2031-05-31").stream().map(LocalDate::parse).toList());
     }
@@ -156,13 +189,44 @@ class AcademicTests {
         for(String login:List.of("teacher","student","parent","director"))try(var client=login(login)){
             assertThat(get(client,"/messages").statusCode()).isEqualTo(200);
             assertThat(get(client,"/messages/"+remark).statusCode()).isEqualTo(200);
-            var inbox = get(client,"/inbox"); assertThat(inbox.statusCode()).isEqualTo(302); assertThat(inbox.headers().firstValue("Location").orElseThrow()).endsWith("/messages");
+            var inbox = get(client,"/inbox"); assertThat(inbox.statusCode()).isEqualTo(302); assertThat(inbox.headers().firstValue("Location").orElseThrow()).endsWith("/notifications");
         }
         try(var client=login("teacher")){assertThat(get(client,"/messages/new?kind=REMARK&classId=1").statusCode()).isEqualTo(200);}
         jdbc.update("delete from parent_student where parent_id=?",parent);
         assertThatThrownBy(()->messages.get(auth("parent",Role.PARENT),remark)).isInstanceOf(AccessDeniedException.class);
         assertThat(messages.inbox(auth("parent",Role.PARENT),0)).isEmpty();
     }
+    @Test void changingEightWeeklyLessonsSendsOneNotificationPerRecipient() {
+        jdbc.execute("alter table schedule_lesson alter column id restart with 100");
+        var form=schedule.editForm(1,1);
+        form.setDate(TODAY.plusDays(1));
+        form.setRequestToken(UUID.randomUUID().toString());
+        form.setLessonNumber(3);
+        form.setRepeatWeekly(true);
+        form.setRepeatUntil(form.getDate().plusWeeks(7));
+        var created=schedule.savePlan(1,null,form);
+        assertThat(created.count()).isEqualTo(8);
+        var edit=schedule.editForm(1,created.first().getId());
+        edit.setApplyFollowing(true);
+        edit.setLessonNumber(4);
+        assertThat(schedule.savePlan(1,created.first().getId(),edit).count()).isEqualTo(8);
+        for(var actor:List.of(auth("student",Role.STUDENT),teacher())) {
+            assertThat(messages.scheduleNotifications(actor,false,0)).singleElement()
+                    .satisfies(n->assertThat(n.get("body").toString()).contains("Расписание изменено на период"));
+        }
+        assertThat(messages.scheduleNotifications(auth("student2",Role.STUDENT),false,0)).isEmpty();
+        assertThatThrownBy(()->schedule.savePlan(1,created.first().getId(),edit)).isInstanceOf(com.example.edujurnal.exception.ScheduleException.class);
+        var unchanged=schedule.editForm(1,created.first().getId());
+        unchanged.setApplyFollowing(true);
+        schedule.savePlan(1,created.first().getId(),unchanged);
+        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,0)).hasSize(1);
+        var next=schedule.editForm(1,created.first().getId());
+        next.setApplyFollowing(true);
+        next.setLessonNumber(5);
+        schedule.savePlan(1,created.first().getId(),next);
+        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,0)).hasSize(2);
+    }
+
     @Test void lessonChangesNotifyOnlyAffectedStudentsAndTeacher() {
         academic.linkParent(director(),null,"parent",student);
         var form=schedule.editForm(1,1);form.setStartTime(LocalTime.of(11,0));form.setEndTime(LocalTime.of(11,45));

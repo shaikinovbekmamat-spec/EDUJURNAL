@@ -361,8 +361,14 @@ class ScheduleTests {
         var plan = generation.previewSchool(1, DATE, DATE.plusDays(11));
         assertThat(plan.replaced()).containsKey(old.getId());
         assertThat(repository.count()).isEqualTo(2);
+        long studentId=users.findByLogin("student_test").getId();
+        long teacherId=users.findByLogin("teacher_test").getId();
+        long studentNotifications=jdbc.queryForObject("select count(*) from school_notification where recipient_id=?",Long.class,studentId);
+        long teacherNotifications=jdbc.queryForObject("select count(*) from school_notification where recipient_id=?",Long.class,teacherId);
         assertThat(generation.save(1, plan)).isEqualTo(12);
         assertThat(generation.save(1, plan)).isEqualTo(12);
+        assertThat(jdbc.queryForObject("select count(*) from school_notification where recipient_id=?",Long.class,studentId)).isEqualTo(studentNotifications+1);
+        assertThat(jdbc.queryForObject("select count(*) from school_notification where recipient_id=?",Long.class,teacherId)).isEqualTo(teacherNotifications+1);
         assertThat(repository.count()).isEqualTo(13);
         assertThat(repository.findById(retained.getId())).isPresent();
         assertThat(repository.findById(old.getId())).isEmpty();
@@ -871,6 +877,69 @@ class ScheduleTests {
             var create = get(client, "/schedule/new?date=" + DATE);
             assertThat(create.body()).contains("2030-12-31", "Период действия расписания");
         }
+    }
+
+    @Test
+    void republishingDoesNotDisplayCompletedSeriesBesideNewTimetable() throws Exception {
+        var old=service.savePlan(1,null,weekly()).first();
+        jdbc.update("update schedule_lesson set lesson_date=? where id=?",DATE.minusWeeks(1),old.getId());
+        schoolCurriculum(3);
+        var end=DATE.plusDays(20);
+        for(int publication=0;publication<2;publication++) {
+            var plan=generation.previewSchool(1,DATE,end);
+            assertThat(generation.save(1,plan)).isEqualTo(18);
+            assertThat(generation.save(1,plan)).isEqualTo(18);
+            assertThat(repository.count()).isEqualTo(19);
+            assertThat(repository.findById(old.getId())).isPresent();
+            try(var client=loggedIn("director_test")) {
+                var page=get(client,"/schedule?classId=1");
+                assertThat(page.statusCode()).isEqualTo(200);
+                assertThat(page.body().split("class=\"lesson-card\"",-1)).hasSize(4);
+                assertThat(page.body()).doesNotContain("Редактирование закрыто");
+            }
+        }
+        var term=com.example.edujurnal.util.AcademicTerm.containing(DATE);
+        var archived=com.example.edujurnal.dto.SemesterSchedule.build(
+                LocalDateTime.of(2031,1,10,12,0),term,catalog.forSchool(1),service.forTerm(1,term),1L);
+        assertThat(archived.classes().getFirst().rows().stream().flatMap(r->r.cells().stream())
+                .flatMap(c->c.lessons().stream()).map(Lesson::getId)).contains(old.getId());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"07:59,false", "08:20,false", "08:45,true", "12:00,true"})
+    void wednesdayCellNeverMixesTodayWithNextWeeksReplacement(String time,boolean useReplacement) {
+        var wednesday=DATE.plusDays(2);
+        var oldForm=weekly();
+        oldForm.setDate(wednesday);
+        oldForm.setRepeatUntil(wednesday);
+        var old=service.savePlan(1,null,oldForm).first();
+        var newForm=weekly();
+        newForm.setDate(wednesday.plusWeeks(1));
+        newForm.setRepeatUntil(wednesday.plusWeeks(2));
+        newForm.setSubjectId(2L);
+        newForm.setTeacherId(2L);
+        var replacement=service.savePlan(1,null,newForm).first();
+        var term=com.example.edujurnal.util.AcademicTerm.containing(wednesday);
+        var view=com.example.edujurnal.dto.SemesterSchedule.build(wednesday.atTime(LocalTime.parse(time)),
+                term,catalog.forSchool(1),service.forTerm(1,term),1L);
+        var cell=view.classes().getFirst().rows().getFirst().cells().get(2);
+        assertThat(cell.lessons()).extracting(Lesson::getId)
+                .containsExactly(useReplacement ? replacement.getId() : old.getId());
+        assertThat(cell.date()).isEqualTo(useReplacement ? wednesday.plusWeeks(1) : wednesday);
+        assertThat(repository.findById(old.getId())).isPresent();
+    }
+
+    @Test
+    void sameDateParallelSubgroupsRemainVisible() {
+        var wednesday=DATE.plusDays(2);
+        var first=form(1,1L,1,1,"08:00","08:45");first.setDate(wednesday);
+        var second=form(1,2L,2,2,"08:00","08:45");second.setDate(wednesday);
+        var a=service.save(1,null,first);var b=service.save(1,null,second);
+        var term=com.example.edujurnal.util.AcademicTerm.containing(wednesday);
+        var view=com.example.edujurnal.dto.SemesterSchedule.build(wednesday.atTime(8,20),
+                term,catalog.forSchool(1),service.forTerm(1,term),1L);
+        assertThat(view.classes().getFirst().rows().getFirst().cells().get(2).lessons())
+                .extracting(Lesson::getId).containsExactlyInAnyOrder(a.getId(),b.getId());
     }
 
     @Test

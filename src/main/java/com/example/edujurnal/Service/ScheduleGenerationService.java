@@ -294,6 +294,7 @@ public class ScheduleGenerationService {
         if (!plan.entries().isEmpty() && plan.entries().stream().allMatch(e ->
                 lessons.findByRequestTokenAndSchoolId(e.getRequestToken(), schoolId).isPresent())) return plan.lessonCount();
         if(plan.curriculumRevision()!=null) verify(plan);
+        List<SchoolNotificationService.Snapshot> before=List.of();
         if (plan.replaced() != null) {
             var current = lessons.findBySchoolIdAndDateBetweenOrderByDateAscStartTimeAscIdAsc(schoolId, plan.start(), plan.end());
             if (!revision(current).equals(plan.replaced()) || !curriculum.revision(schoolId).equals(plan.curriculumRevision()))
@@ -301,7 +302,7 @@ public class ScheduleGenerationService {
             var problems = curriculum.problems(schoolId);
             if (!problems.isEmpty()) throw new ScheduleException(problems);
             if (current.stream().anyMatch(l -> !schedule.editable(l))) throw new ScheduleException("Уроки с оценками или начавшиеся занятия нельзя заменять.");
-            for(var old:current) schedule.notifyReplacement(old);
+            before=schedule.notificationSnapshots(current);
             lessons.deleteAll(current);
             lessons.flush();
         }
@@ -312,7 +313,7 @@ public class ScheduleGenerationService {
             form.setRepeatUntil(plan.end());
             count += schedule.savePlan(schoolId, null, form).count();
         }
-        if(plan.replaced()!=null && !plan.replaced().isEmpty()) for(var published:lessons.findBySchoolIdAndDateBetweenOrderByDateAscStartTimeAscIdAsc(schoolId,plan.start(),plan.end()))schedule.notifyPublished(published);
+        if(!before.isEmpty()) schedule.notifyBatch(before,lessons.findBySchoolIdAndDateBetweenOrderByDateAscStartTimeAscIdAsc(schoolId,plan.start(),plan.end()),"schedule:"+UUID.randomUUID(),plan.start(),plan.end());
         return count;
     }
 

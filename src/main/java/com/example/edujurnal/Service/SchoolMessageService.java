@@ -68,6 +68,9 @@ public class SchoolMessageService {
   jdbc.update("insert into message_history(message_id,actor_id,old_body,new_body,reason) values(?,?,?,?,?)",id,u.getId(),row.get("body"),body,reason);
  }
  public List<Map<String,Object>> history(Authentication auth,long id){get(auth,id);return jdbc.queryForList("select h.*,u.full_name from message_history h join users u on u.id=h.actor_id where message_id=? order by h.id desc",id);}
+ public List<Map<String,Object>> scheduleNotifications(Authentication auth,boolean unread,int page) {
+  return jdbc.queryForList("select n.* from school_notification n where n.recipient_id=? and n.message_id is null"+(unread ? " and n.read_at is null" : "")+" order by n.created_at desc,n.id desc limit 21 offset ?",access.currentUser(auth).getId(),Math.max(0,Math.min(page,100000))*20);
+ }
  public List<Map<String,Object>> inbox(Authentication auth,int page){var u=access.currentUser(auth);return jdbc.queryForList("select n.* from school_notification n where n.recipient_id=? and (n.message_id is null or n.student_id=? or exists(select 1 from parent_student p where p.parent_id=? and p.student_id=n.student_id)) order by n.created_at desc,n.id desc limit 21 offset ?",u.getId(),u.getId(),u.getId(),Math.max(0,Math.min(page,100000))*20);}
  @Transactional public void read(Authentication auth,long id){if(jdbc.update("update school_notification set read_at=current_timestamp where id=? and recipient_id=?",id,access.currentUser(auth).getId())==0)throw new AccessDeniedException("Уведомление недоступно.");}
  public List<Map<String,Object>> subgroups(Authentication auth){var u=author(auth);return jdbc.queryForList("select g.id,c.name as class_name,g.name from schedule_subgroup g join schedule_class c on c.id=g.class_id where g.school_id=? and (?='DIRECTOR' or exists(select 1 from teaching_assignment a where a.class_id=c.id and a.teacher_id=?)) order by c.name,g.name",u.getSchool().getId(),u.getRole().name(),u.getTeacherId());}
