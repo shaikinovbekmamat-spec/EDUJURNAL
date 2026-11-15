@@ -30,4 +30,18 @@ public class SchoolNotificationService {
   for(long id:recipients)send(id,"lesson:"+after.getId()+":"+after.getVersion(),"Урок изменён. Было: "+before.description()+". Стало: "+next.description(),next.link(),null,null);
  }
  public void cancelled(Snapshot before,String key){for(long id:before.recipients())send(id,key,"Урок отменён: "+before.description(),before.link(),null,null);}
+ public void batchChanged(List<Snapshot> before,List<Snapshot> after,String key,java.time.LocalDate start,java.time.LocalDate end) {
+  var previous=new HashMap<Long,Snapshot>();
+  for(var item:before)previous.put(item.id(),item);
+  var recipients=new HashSet<Long>();
+  for(var item:after){
+   var old=previous.remove(item.id());
+   if(old!=null && old.description().equals(item.description()) && old.recipients().equals(item.recipients()))continue;
+   recipients.addAll(item.recipients());
+   if(old!=null)recipients.addAll(old.recipients());
+  }
+  for(var removed:previous.values())recipients.addAll(removed.recipients());
+  var format=java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy");
+  for(long recipient:recipients)send(recipient,key,"Расписание изменено на период "+start.format(format)+" — "+end.format(format)+". Откройте расписание, чтобы посмотреть актуальные уроки.","/schedule?date="+start,null,null);
+ }
 }

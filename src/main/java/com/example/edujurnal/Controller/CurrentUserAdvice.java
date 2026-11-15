@@ -59,14 +59,14 @@ public class CurrentUserAdvice {
             
             add(items,request,"Графики",home+"#progress","↗");
         }
-        if(role!=Role.OWNER) add(items,request,"Посещаемость","/attendance","✓"); if(role==Role.PARENT || role==Role.TEACHER) add(items,request,"Уведомления","/notifications","◉"); if(role!=Role.OWNER){add(items,request,"Объявления","/messages","◉");add(items,request,"Замечания","/messages?kind=REMARK","◉");} add(items,request,"Профиль","/profile","○");
+        if(role!=Role.OWNER) add(items,request,"Посещаемость","/attendance","✓"); if(role==Role.PARENT || role==Role.TEACHER || role==Role.STUDENT) add(items,request,"Уведомления","/notifications","◉"); if(role!=Role.OWNER){add(items,request,"Объявления","/messages","◉");add(items,request,"Замечания","/messages?kind=REMARK","◉");} add(items,request,"Профиль","/profile","○");
         return new Navigation(user.getFullName()==null || user.getFullName().isBlank() ? user.getLogin() : user.getFullName(),user.getLogin(),label,home,List.copyOf(items));
     }
 
     private void add(List<NavigationItem> items,HttpServletRequest request,String label,String href,String icon) {
         String path=request.getRequestURI();
         boolean family="true".equals(request.getParameter("family"));
-        boolean active=href.equals(path) || (href.equals("/schedule") && path.startsWith("/schedule/"));
+        boolean active=(href.equals("/notifications") && path.startsWith("/notifications")) || href.equals(path) || (href.equals("/schedule") && path.startsWith("/schedule/"));
         if(href.equals("/journal")) active=path.equals("/journal") && !family;
         if(href.equals("/journal?family=true")) active=path.equals("/journal") && family;
         if(href.equals("/journal/today")) active=path.startsWith("/journal/");

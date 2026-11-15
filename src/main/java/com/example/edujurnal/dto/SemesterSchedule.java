@@ -10,7 +10,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-/** One timetable for the term; each recurring series is displayed only once. */
+/** Nearest lesson date per cell; past terms retain their historical timetable. */
 public record SemesterSchedule(List<WeekSchedule.Day> days, List<WeekSchedule.ClassWeek> classes,
                                List<Lesson> outsideGrid) {
     public static SemesterSchedule build(LocalDateTime now, AcademicTerm term, ScheduleCatalog.Catalog catalog,
@@ -25,17 +25,30 @@ public record SemesterSchedule(List<WeekSchedule.Day> days, List<WeekSchedule.Cl
                         l.getDate().atTime(l.getStartTime()).isAfter(now) ? 0 : 1)
                 .thenComparingLong(l -> l.getDate().atTime(l.getStartTime()).isAfter(now)
                         ? l.getDate().toEpochDay() : -l.getDate().toEpochDay()).thenComparing(Lesson::getId);
-        var visible = groups.values().stream().map(series -> series.stream().min(order).orElseThrow()).toList();
+        boolean historical = term.end().isBefore(now.toLocalDate());
+        var visible = groups.values().stream()
+                // Publication preserves completed lessons for the journal. An expired series
+                // must not reappear beside its replacement in the current timetable.
+                .filter(series -> historical || series.stream().anyMatch(l -> l.getDate().atTime(l.getEndTime()).isAfter(now)))
+                .map(series -> series.stream().min(order).orElseThrow()).toList();
         var classes = catalog.classes().stream().filter(c -> selectedClass == null || selectedClass == c.id())
                 .map(c -> {
                     var rows = BellSchedule.SLOTS.stream().map(slot -> new WeekSchedule.Row(slot,
                             days.stream().map(day -> {
                                 LocalDate date = day.date();
-                                if (!date.atTime(slot.start()).isAfter(now)) date = date.plusWeeks(1);
-                                return new WeekSchedule.Cell(date, visible.stream()
+                                if (!date.atTime(slot.end()).isAfter(now)) date = date.plusWeeks(1);
+                                var candidates = (historical ? visible : lessons).stream()
                                         .filter(l -> l.getClassId() == c.id()
                                                 && l.getDate().getDayOfWeek() == day.date().getDayOfWeek()
-                                                && Integer.valueOf(slot.number()).equals(BellSchedule.number(l)))
+                                                && Integer.valueOf(slot.number()).equals(BellSchedule.number(l))
+                                                && (historical || l.getDate().atTime(l.getEndTime()).isAfter(now)))
+                                        .toList();
+                                // A weekday is not a date: today's old timetable and next
+                                // week's replacement must never be combined in one cell.
+                                LocalDate cellDate = historical ? date : candidates.stream().map(Lesson::getDate)
+                                        .min(LocalDate::compareTo).orElse(date);
+                                return new WeekSchedule.Cell(cellDate, candidates.stream()
+                                        .filter(l -> historical || l.getDate().equals(cellDate))
                                         .sorted(Comparator.comparing(Lesson::getStartTime).thenComparing(Lesson::getId)).toList());
                             }).toList())).toList();
                     int count = rows.stream().flatMap(r -> r.cells().stream()).mapToInt(cell -> cell.lessons().size()).sum();

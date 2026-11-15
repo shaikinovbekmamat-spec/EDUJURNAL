@@ -119,12 +119,14 @@ public class ScheduleService {
             LocalDate termEnd = AcademicTerm.containing(selected.getDate()).end();
             List<Lesson> following = series.stream().filter(l -> !l.getDate().isBefore(selected.getDate())
                     && !l.getDate().isAfter(termEnd)).toList();
+            var before=notificationSnapshots(following);
             for (Lesson occurrence : following) {
                 LessonForm change = form.copy();
                 change.setDate(occurrence.getDate());
                 change.setVersion(occurrence.getVersion());
-                saveWithDate(schoolId, occurrence.getId(), change);
+                saveWithDate(schoolId, occurrence.getId(), change, false);
             }
+            notifyBatch(before,following,"series:"+UUID.randomUUID(),selected.getDate(),following.getLast().getDate());
             return new SaveResult(selected, following.size());
         }
         if (id != null || !form.isRepeatWeekly()) {
@@ -154,8 +156,12 @@ public class ScheduleService {
     }
 
     private Lesson saveWithDate(long schoolId, Long id, LessonForm form) {
+        return saveWithDate(schoolId,id,form,true);
+    }
+
+    private Lesson saveWithDate(long schoolId, Long id, LessonForm form, boolean notify) {
         try {
-            return save(schoolId, id, form);
+            return saveInternal(schoolId, id, form, notify);
         } catch (ScheduleException ex) {
             String date = form.getDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
             throw new ScheduleException(ex.getErrors().stream().map(e -> date + ": " + e).toList());
@@ -179,6 +185,10 @@ public class ScheduleService {
 
     @Transactional
     public Lesson save(long schoolId, Long id, LessonForm form) {
+        return saveInternal(schoolId,id,form,true);
+    }
+
+    private Lesson saveInternal(long schoolId, Long id, LessonForm form, boolean notify) {
         var errors = validator.validate(form);
         if (!errors.isEmpty()) {
             throw new ScheduleException(errors.stream().map(e -> e.getMessage()).sorted().toList());
@@ -207,13 +217,13 @@ public class ScheduleService {
         catalog.validate(schoolId, form);
         var found = conflicts.checkConflicts(form, id, forDate(schoolId, form.getDate()));
         if (!found.isEmpty()) throw new ScheduleException(found);
-        var before=lesson==null?null:notifications.snapshot(lesson);
+        var before=lesson==null || !notify?null:notifications.snapshot(lesson);
         if (lesson == null) lesson = new Lesson(schoolId, form);
         else lesson.apply(form);
         lesson=lessons.saveAndFlush(lesson); if(before!=null)notifications.changed(before,lesson); return lesson;
     }
-    void notifyPublished(Lesson lesson){var snap=notifications.snapshot(lesson);for(long recipient:snap.recipients())notifications.send(recipient,"published:"+lesson.getId(),"Обновлённое расписание: "+snap.description(),snap.link(),null,null);}
-    void notifyReplacement(Lesson lesson){notifications.cancelled(notifications.snapshot(lesson),"replace:"+lesson.getId());}
+    List<SchoolNotificationService.Snapshot> notificationSnapshots(List<Lesson> items){return items.stream().map(notifications::snapshot).toList();}
+    void notifyBatch(List<SchoolNotificationService.Snapshot> before,List<Lesson> after,String key,LocalDate start,LocalDate end){notifications.batchChanged(before,notificationSnapshots(after),key,start,end);}
     @Transactional public void cancel(long school,long id,long version){
         catalog.lockSchool(school);var lesson=get(school,id);
         if(lesson.getVersion()!=version)throw new ScheduleException("Урок изменён. Обновите страницу.");
