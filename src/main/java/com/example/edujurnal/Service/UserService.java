@@ -72,4 +72,14 @@ public class UserService implements UserDetailsService {
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
     }
+
+    @Transactional
+    public void changeLanguage(String login, String language) {
+        User user = userRepository.findByLogin(login)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден"));
+        if (!"ru".equals(language) && !"ky".equals(language))
+            throw new IllegalArgumentException("Неизвестный язык интерфейса.");
+        user.setLanguage(language);
+        userRepository.save(user);
+    }
 }

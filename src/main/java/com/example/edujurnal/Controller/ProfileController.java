@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.ui.Model;
 
 @Controller
 public class ProfileController {
@@ -15,7 +16,22 @@ public class ProfileController {
     public ProfileController(UserService users) { this.users = users; }
 
     @GetMapping("/profile")
-    public String profile() { return "profile"; }
+    public String profile(Authentication authentication, Model model) {
+        model.addAttribute("profileUser", users.findByLogin(authentication.getName()));
+        return "profile";
+    }
+
+    @PostMapping("/profile/language")
+    public String changeLanguage(Authentication authentication, @RequestParam String language,
+                                 RedirectAttributes redirect) {
+        try {
+            users.changeLanguage(authentication.getName(), language);
+            redirect.addFlashAttribute("success", "Язык интерфейса изменён.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/profile?lang=" + language;
+    }
 
     @PostMapping("/profile/password")
     public String changePassword(Authentication authentication,

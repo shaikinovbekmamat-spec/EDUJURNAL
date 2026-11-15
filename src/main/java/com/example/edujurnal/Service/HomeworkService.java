@@ -25,6 +25,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.web.multipart.MultipartFile;
 
 /** Домашние задания и история ответов (ФР 08–09). Все операции атомарны. */
@@ -59,7 +60,9 @@ public class HomeworkService {
     public record Card(long id, String title, String body, String className, String subject,
                        String teacher, LocalDate dueDate, String mode, OffsetDateTime publishedAt,
                        String status, long audienceCount, long submittedCount, long acceptedCount) {
-        public String modeLabel() { return "ONLINE".equals(mode) ? "На сайте" : "В тетради"; }
+        public String modeLabel() { return "ONLINE".equals(mode)
+                ? ("ky".equals(LocaleContextHolder.getLocale().getLanguage()) ? "Сайтта" : "На сайте")
+                : ("ky".equals(LocaleContextHolder.getLocale().getLanguage()) ? "Дептерде" : "В тетради"); }
         public String statusLabel() { return HomeworkService.statusLabel(status); }
     }
     public record FileInfo(long id, String name, long size) {}
@@ -71,15 +74,16 @@ public class HomeworkService {
     public record StudentWork(long studentId, String name, String status, Answer latest) {
         public String statusLabel() { return HomeworkService.statusLabel(status); }
     }
-    public record Detail(Card homework, boolean teacher, List<StudentWork> students, List<Answer> history) {}
+    public record Detail(Card homework, boolean teacher, List<StudentWork> students, List<Answer> history, boolean archived) {}
     private record Visibility(String sql, Object[] args) {}
 
     public static String statusLabel(String status) {
+        boolean kyrgyz = "ky".equals(LocaleContextHolder.getLocale().getLanguage());
         return switch (status) {
-            case "SENT" -> "Отправлено";
-            case "RETURNED" -> "На доработке";
-            case "ACCEPTED" -> "Принято";
-            default -> "Не сдано";
+            case "SENT" -> kyrgyz ? "Жөнөтүлдү" : "Отправлено";
+            case "RETURNED" -> kyrgyz ? "Оңдоого кайтарылды" : "На доработке";
+            case "ACCEPTED" -> kyrgyz ? "Кабыл алынды" : "Принято";
+            default -> kyrgyz ? "Тапшырылган жок" : "Не сдано";
         };
     }
 
@@ -212,7 +216,8 @@ public class HomeworkService {
                     return new StudentWork(studentId,r.getString(2),status,latest);
                 }, audienceArgs);
         if (!teacher && !students.isEmpty()) card = withStatus(card,students.getFirst().status());
-        return new Detail(card,teacher,teacher ? students : List.of(),teacher ? List.of() : List.copyOf(answers.getOrDefault(user.getId(),List.of())));
+        boolean archived=jdbc.queryForObject("select count(*) from academic_year where school_id=? and archived=true and ? between starts_on and ends_on",Long.class,user.getSchool().getId(),card.publishedAt().toLocalDate())>0;
+        return new Detail(card,teacher,teacher ? students : List.of(),teacher ? List.of() : List.copyOf(answers.getOrDefault(user.getId(),List.of())),archived);
     }
 
     public FileDownload download(Authentication auth, long fileId) {
@@ -246,6 +251,7 @@ public class HomeworkService {
         User teacher = teacher(auth);
         lockSchool(teacher);
         assigned(teacher, classId, subjectId);
+        AcademicYearArchive.requireOpenDate(jdbc,teacher.getSchool().getId(),today());
         title = required(title, 200, "Укажите заголовок ДЗ (до 200 символов).");
         body = required(body, 10000, "Укажите содержание ДЗ (до 10000 символов).");
         requestToken = required(requestToken, 100, "Укажите идентификатор запроса (до 100 символов).");
@@ -303,7 +309,9 @@ public class HomeworkService {
         User student = access.currentUser(auth);
         if (student.getRole() != Role.STUDENT || student.getSchool() == null)
             throw new AccessDeniedException("Ответ отправляет только ученик — адресат ДЗ.");
+        lockSchool(student);
         Homework h = studentHomework(student, homeworkId);
+        AcademicYearArchive.requireOpenHomework(jdbc,h.schoolId(),h.id());
         lockAudience(h, student.getId());
         requireMode(h, "ONLINE");
         text = optional(text, 10000, "Ответ не должен превышать 10000 символов.");
@@ -355,6 +363,7 @@ public class HomeworkService {
         User teacher = teacher(auth);
         lockSchool(teacher);
         Homework h = teacherHomework(teacher, homeworkId);
+        AcademicYearArchive.requireOpenHomework(jdbc,h.schoolId(),h.id());
         lockAudience(h, studentId);
         requireMode(h, "ONLINE");
         if (!"ACCEPTED".equals(status) && !"RETURNED".equals(status))
@@ -386,6 +395,7 @@ public class HomeworkService {
         User teacher = teacher(auth);
         lockSchool(teacher);
         Homework h = teacherHomework(teacher, homeworkId);
+        AcademicYearArchive.requireOpenHomework(jdbc,h.schoolId(),h.id());
         lockAudience(h, studentId);
         requireMode(h, "NOTEBOOK");
         if (jdbc.queryForObject("select count(*) from homework_paper_mark where homework_id=? and student_id=?",

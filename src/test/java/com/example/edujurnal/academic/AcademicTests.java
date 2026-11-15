@@ -36,6 +36,8 @@ class AcademicTests {
     @Autowired PasswordEncoder passwords;
     @Autowired ScheduleService schedule;
     @Autowired StudentDashboardService dashboard;
+    @Autowired AcademicYearArchive archive;
+    @Autowired HomeworkService homework;
     @LocalServerPort int port;
     long student,otherStudent,parent,teacher;
     static final LocalDate TODAY=LocalDate.of(2030,10,21);
@@ -46,6 +48,7 @@ class AcademicTests {
     Authentication director() {return auth("director",Role.DIRECTOR);}
     Authentication teacher() {return auth("teacher",Role.TEACHER);}
     @BeforeEach void setup() {
+        for(String table:List.of("homework_file","homework_submission","homework_paper_mark","homework_audience","homework")) jdbc.update("delete from "+table);
         for(String table:List.of("school_notification","message_attachment","message_history","message_audience","school_message","attendance_notification","attendance_history","attendance","journal_final_grade","journal_grade","parent_student","teaching_assignment","academic_quarter","academic_year","users","schedule_lesson","schedule_teacher_subject","schedule_membership","schedule_subgroup","schedule_room","schedule_teacher","schedule_subject","schedule_class","schedule_school")) jdbc.update("delete from "+table);
         jdbc.update("insert into schedule_school values(1,'Школа А'),(2,'Школа Б')");
         jdbc.update("insert into schedule_class(id,school_id,name) values(1,1,'7А'),(2,2,'8Б')");
@@ -68,18 +71,83 @@ class AcademicTests {
         createYear(auth("director2",Role.DIRECTOR),"2030–2031",List.of("2030-09-01","2030-11-01","2031-01-10","2031-04-01"));
         lesson(1,1,TODAY); lesson(2,2,TODAY);
     }
+    long pastYear() {
+        academic.createYear(director(),"2029–2030",LocalDate.of(2029,9,1),LocalDate.of(2030,8,31),
+                List.of(LocalDate.of(2029,9,1),LocalDate.of(2029,11,1),LocalDate.of(2030,1,10),LocalDate.of(2030,4,1)),
+                List.of(LocalDate.of(2029,10,31),LocalDate.of(2029,12,31),LocalDate.of(2030,3,20),LocalDate.of(2030,5,31)));
+        return jdbc.queryForObject("select id from academic_year where school_id=1 and name='2029–2030'",Long.class);
+    }
+
+    @Test void archivePreservesHistoryAndBlocksFurtherWrites() throws Exception {
+        long year=pastYear();
+        lesson(50,1,LocalDate.of(2030,5,20));
+        long quarter=jdbc.queryForObject("select id from academic_quarter where year_id=? and number=4",Long.class,year);
+        jdbc.update("insert into journal_grade(lesson_id,student_id,teacher_user_id,quarter_id,grade_value) values(50,?,?,?,5)",student,teacher,quarter);
+        attendance.save(teacher(),50,student,"PRESENT","","",0);
+        finals.save(teacher(),student,1,year,null,5);
+        long hw=homework.create(teacher(),1,1,"Архивное ДЗ","Решение",TODAY,"ONLINE","archive-hw");
+        jdbc.update("update homework set published_at='2030-05-20T10:00:00+06:00' where id=?",hw);
+        long answer=homework.submit(auth("student",Role.STUDENT),hw,"Сохранённый ответ",null);
+        byte[] contents={1,2,3,4,5};
+        jdbc.update("insert into homework_file(submission_id,name,content_type,data) values(?,'saved.pdf','application/pdf',?)",answer,contents);
+        long file=jdbc.queryForObject("select id from homework_file where submission_id=?",Long.class,answer);
+        archive.archive(director(),year);
+        var archived=jdbc.queryForMap("select * from academic_year where id=?",year);
+        archive.archive(director(),year);
+        assertThat(jdbc.queryForMap("select * from academic_year where id=?",year)).isEqualTo(archived);
+        assertThat(archived.get("archived")).isEqualTo(true);
+        assertThat(archived.get("archived_by")).isEqualTo(users.findByLogin("director").getId());
+        assertThat(journal.view(auth("student",Role.STUDENT),false,null,year,null).entries()).singleElement().satisfies(e->assertThat(e.grade()).isEqualTo(5));
+        assertThat(attendance.mark(50,student).status()).isEqualTo("PRESENT");
+        assertThat(homework.download(auth("student",Role.STUDENT),file).data()).containsExactly(contents);
+        assertThat(homework.detail(auth("student",Role.STUDENT),hw).archived()).isTrue();
+        assertThatThrownBy(()->attendance.save(teacher(),50,student,"ABSENT","","Причина",1)).hasMessageContaining("архиве");
+        assertThatThrownBy(()->finals.save(teacher(),student,1,year,quarter,4)).hasMessageContaining("архиве");
+        assertThatThrownBy(()->journal.saveGrade(teacher(),50,student,4)).hasMessageContaining("архиве");
+        assertThatThrownBy(()->homework.submit(auth("student",Role.STUDENT),hw,"Новая версия",null)).hasMessageContaining("архиве");
+        assertThatThrownBy(()->homework.check(teacher(),hw,student,"ACCEPTED","")).hasMessageContaining("архиве");
+        assertThatThrownBy(()->academic.deleteYear(director(),year)).hasMessageContaining("архиве");
+        assertThatThrownBy(()->academic.updateYear(director(),year,"Изменение",null,null,null,null)).hasMessageContaining("архиве");
+        assertThatThrownBy(()->homework.download(auth("student2",Role.STUDENT),file)).isInstanceOf(AccessDeniedException.class);
+        // The active year and another school remain writable.
+        journal.saveGrade(teacher(),1,student,4);
+        attendance.save(auth("teacher",Role.TEACHER),1,student,"PRESENT","","",0);
+        try(var client=login("student")) {
+            assertThat(get(client,"/journal?yearId="+year).statusCode()).isEqualTo(200);
+            var page=get(client,"/homework/"+hw);
+            assertThat(page.statusCode()).isEqualTo(200);
+            assertThat(page.body()).contains("только для просмотра","Сохранённый ответ").doesNotContain("Отправить новую версию");
+        }
+    }
+
+    @Test void archiveRequiresDirectorOwnSchoolCompletedYearAndCsrf() throws Exception {
+        long year=pastYear();
+        long current=jdbc.queryForObject("select id from academic_year where school_id=1 and name='2030–2031'",Long.class);
+        assertThatThrownBy(()->archive.archive(teacher(),year)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(()->archive.archive(auth("director2",Role.DIRECTOR),year)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(()->archive.archive(director(),current)).hasMessageContaining("завершённый");
+        try(var client=login("director")) {
+            var page=get(client,"/management");
+            assertThat(page.statusCode()).isEqualTo(200);
+            assertThat(post(client,"/management/years/"+year+"/archive","").statusCode()).isEqualTo(403);
+            assertThat(post(client,"/management/years/"+year+"/archive","_csrf="+csrf(page.body())).statusCode()).isEqualTo(302);
+            assertThat(get(client,"/management").body()).contains("Архив · только просмотр");
+        }
+        assertThat(jdbc.queryForObject("select count(*) from academic_year where school_id=2 and archived=true",Long.class)).isZero();
+    }
+
     @Test void scheduleNotificationsRenderAndCanOnlyBeReadByRecipient() throws Exception {
         schedule.cancel(1,1,schedule.get(1,1).getVersion());
-        var rows=messages.scheduleNotifications(auth("student",Role.STUDENT),true,0);
+        var rows=messages.notifications(auth("student",Role.STUDENT),true,0);
         assertThat(rows).hasSize(1);
         long id=((Number)rows.getFirst().get("id")).longValue();
-        assertThat(messages.scheduleNotifications(teacher(),true,0)).hasSize(1);
-        assertThat(messages.scheduleNotifications(auth("student2",Role.STUDENT),false,0)).isEmpty();
+        assertThat(messages.notifications(teacher(),true,0)).hasSize(1);
+        assertThat(messages.notifications(auth("student2",Role.STUDENT),false,0)).isEmpty();
         try(var client=login("student")) {
-            assertThat(get(client,"/notifications").headers().firstValue("Location").orElseThrow()).endsWith("/notifications/schedule");
+            assertThat(get(client,"/notifications").statusCode()).isEqualTo(200);
             var page=get(client,"/notifications/schedule?unread=true");
             assertThat(page.statusCode()).isEqualTo(200);
-            assertThat(page.body()).contains("Урок отменён", "Математика", "Открыть расписание", "Отметить прочитанным");
+            assertThat(page.body()).contains("Урок отменён", "Математика", "Открыть", "Отметить прочитанным");
             assertThat(post(client,"/notifications/schedule/"+id+"/read","").statusCode()).isEqualTo(403);
             assertThat(post(client,"/notifications/schedule/"+id+"/read","_csrf="+csrf(page.body())+"&unread=true").statusCode()).isEqualTo(302);
             assertThat(get(client,"/notifications/schedule?unread=true").body()).contains("Непрочитанных уведомлений нет.").doesNotContain("Урок отменён");
@@ -92,13 +160,41 @@ class AcademicTests {
         }
     }
 
+    @Test void notificationInboxShowsAllEventsButNeverAnotherStudentsNotifications() throws Exception {
+        long classmate=users.createUser("classmate","Test123!",Role.STUDENT,"Одноклассник",schools.findById(1L).orElseThrow()).getId();
+        jdbc.update("update users set student_class_id=1 where id=?",classmate);
+        for(String event:List.of("grade:own","hw:own","lesson:own"))
+            jdbc.update("insert into school_notification(recipient_id,event_key,body,link) values(?,?,?,?)",student,event,"Моё уведомление "+event,event.startsWith("grade") ? "/journal" : event.startsWith("hw") ? "/homework" : "/schedule");
+        messages.create(director(),"ANNOUNCEMENT","Объявление моего класса","Текст объявления",List.of(1L),null,null,null,TODAY,"inbox-announcement");
+        jdbc.update("insert into school_notification(recipient_id,event_key,body,link) values(?,?,?,?)",classmate,"grade:classmate","Чужая оценка одноклассника","/journal");
+        jdbc.update("insert into school_notification(recipient_id,event_key,body,link) values(?,?,?,?)",otherStudent,"hw:foreign","Чужое домашнее задание","/homework");
+        long foreignId=jdbc.queryForObject("select id from school_notification where event_key='grade:classmate'",Long.class);
+        long ownId=jdbc.queryForObject("select id from school_notification where event_key='grade:own'",Long.class);
+        try(var client=login("student")) {
+            var page=get(client,"/notifications?studentId="+classmate+"&recipientId="+otherStudent+"&childId="+otherStudent);
+            assertThat(page.statusCode()).isEqualTo(200);
+            assertThat(page.body()).contains("Моё уведомление grade:own","Моё уведомление hw:own","Моё уведомление lesson:own","Объявление моего класса")
+                    .doesNotContain("Чужая оценка одноклассника","Чужое домашнее задание","Открыть расписание");
+            assertThat(post(client,"/notifications/messages/"+foreignId+"/read","_csrf="+csrf(page.body())).statusCode()).isEqualTo(403);
+            assertThat(jdbc.queryForMap("select read_at from school_notification where id=?",foreignId).get("read_at")).isNull();
+            assertThat(post(client,"/notifications/messages/"+ownId+"/read","").statusCode()).isEqualTo(403);
+            var read=post(client,"/notifications/messages/"+ownId+"/read","_csrf="+csrf(page.body()));
+            assertThat(read.statusCode()).isEqualTo(302);
+            assertThat(read.headers().firstValue("Location").orElseThrow()).contains("/notifications").doesNotContain("/schedule");
+            assertThat(get(client,"/notifications?unread=true").body()).doesNotContain("Моё уведомление grade:own").contains("Моё уведомление hw:own");
+        }
+        try(var client=login("classmate")) {
+            assertThat(get(client,"/notifications").body()).contains("Чужая оценка одноклассника").doesNotContain("Моё уведомление grade:own","Моё уведомление hw:own");
+        }
+    }
+
     @Test void scheduleNotificationsPaginateAndFilterUnread() {
         for(int i=0;i<22;i++) jdbc.update("insert into school_notification(recipient_id,event_key,body,link) values(?,?,?,?)",student,"lesson:test:"+i,"Изменение "+i,"/schedule");
-        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,0)).hasSize(21);
-        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,1)).hasSize(2);
-        var first=messages.scheduleNotifications(auth("student",Role.STUDENT),false,0).getFirst();
+        assertThat(messages.notifications(auth("student",Role.STUDENT),false,0)).hasSize(21);
+        assertThat(messages.notifications(auth("student",Role.STUDENT),false,1)).hasSize(2);
+        var first=messages.notifications(auth("student",Role.STUDENT),false,0).getFirst();
         messages.read(auth("student",Role.STUDENT),((Number)first.get("id")).longValue());
-        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),true,1)).hasSize(1);
+        assertThat(messages.notifications(auth("student",Role.STUDENT),true,1)).hasSize(1);
     }
 
     void createYear(Authentication actor,String name,List<String> starts) {
@@ -163,8 +259,8 @@ class AcademicTests {
         jdbc.update("insert into parent_student(parent_id,student_id,confirmed_by) values(?,?,?)",parent,student,teacher);
         attendance.save(teacher(),1,student,"ABSENT","","",0);
         try(var client=login("parent")) {
-            assertThat(get(client,"/notifications?childId="+otherStudent).statusCode()).isEqualTo(403);
-            var response=get(client,"/notifications?unread=true");assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).contains("Отсутствовал");
+            assertThat(get(client,"/notifications?type=attendance&childId="+otherStudent).statusCode()).isEqualTo(403);
+            var response=get(client,"/notifications?type=attendance&unread=true");assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).contains("Отсутствовал");
         }
     }
     @Test void communicationsProtectAudienceAndRetainCorrections() throws Exception {
@@ -211,20 +307,20 @@ class AcademicTests {
         edit.setLessonNumber(4);
         assertThat(schedule.savePlan(1,created.first().getId(),edit).count()).isEqualTo(8);
         for(var actor:List.of(auth("student",Role.STUDENT),teacher())) {
-            assertThat(messages.scheduleNotifications(actor,false,0)).singleElement()
+            assertThat(messages.notifications(actor,false,0)).singleElement()
                     .satisfies(n->assertThat(n.get("body").toString()).contains("Расписание изменено на период"));
         }
-        assertThat(messages.scheduleNotifications(auth("student2",Role.STUDENT),false,0)).isEmpty();
+        assertThat(messages.notifications(auth("student2",Role.STUDENT),false,0)).isEmpty();
         assertThatThrownBy(()->schedule.savePlan(1,created.first().getId(),edit)).isInstanceOf(com.example.edujurnal.exception.ScheduleException.class);
         var unchanged=schedule.editForm(1,created.first().getId());
         unchanged.setApplyFollowing(true);
         schedule.savePlan(1,created.first().getId(),unchanged);
-        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,0)).hasSize(1);
+        assertThat(messages.notifications(auth("student",Role.STUDENT),false,0)).hasSize(1);
         var next=schedule.editForm(1,created.first().getId());
         next.setApplyFollowing(true);
         next.setLessonNumber(5);
         schedule.savePlan(1,created.first().getId(),next);
-        assertThat(messages.scheduleNotifications(auth("student",Role.STUDENT),false,0)).hasSize(2);
+        assertThat(messages.notifications(auth("student",Role.STUDENT),false,0)).hasSize(2);
     }
 
     @Test void lessonChangesNotifyOnlyAffectedStudentsAndTeacher() {

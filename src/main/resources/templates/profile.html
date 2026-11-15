@@ -23,5 +23,18 @@
             <div class="wide"><button type="submit">Изменить пароль</button></div>
         </form>
     </section>
+    <section class="card">
+        <h2>Язык интерфейса</h2>
+        <p class="muted">Выберите язык меню и основных элементов сайта.</p>
+        <form th:action="@{/profile/language}" method="post" class="fields">
+            <label>Язык
+                <select name="language">
+                    <option value="ru" th:selected="${profileUser.language == 'ru'}">Русский</option>
+                    <option value="ky" th:selected="${profileUser.language == 'ky'}">Кыргызча</option>
+                </select>
+            </label>
+            <div><button type="submit">Сохранить язык</button></div>
+        </form>
+    </section>
 </main>
 </body></html>

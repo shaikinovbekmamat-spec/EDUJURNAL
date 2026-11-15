@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/tkrpo}
     username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:1111}
+    password: ${DB_PASSWORD:5555}
   jpa:
     open-in-view: false
     hibernate:
@@ -14,3 +14,9 @@ spring:
       enabled: false
 server:
   address: 127.0.0.1
+
+# Backup settings
+backup:
+  directory: backups
+  pg_dump_path: 'C:/Program Files/PostgreSQL/17/bin/pg_dump.exe'
+  pg_restore_path: 'C:/Program Files/PostgreSQL/17/bin/pg_restore.exe'

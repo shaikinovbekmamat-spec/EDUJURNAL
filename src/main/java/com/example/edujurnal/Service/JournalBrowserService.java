@@ -34,6 +34,7 @@ public class JournalBrowserService {
   var view=journal.view(auth,family,childId,yearId,quarterId,filter,subject,31,page*30);
   model.addAttribute("browser",selection);model.addAttribute("path",path);model.addAttribute("subjectFilter",subject==null?"":subject);model.addAttribute("pageNumber",page);
   model.addAttribute("more",view.entries().size()>30);model.addAttribute("rows",view.entries().stream().limit(30).toList());
+  model.addAttribute("archivedYear",view.yearId()!=null && jdbc.queryForObject("select archived from academic_year where id=?",Boolean.class,view.yearId()));
   model.addAttribute("user",access.currentUser(auth));model.addAttribute("view",view);
   model.addAttribute("subjectChoices",view.yearId()==null?List.of():jdbc.queryForList("select s.name from schedule_subject s join academic_year y on y.school_id=s.school_id where y.id=? order by s.name",String.class,view.yearId()));
   model.addAttribute("selectedName",selection.studentId()==null?"":jdbc.queryForObject("select full_name from users where id=?",String.class,selection.studentId()));

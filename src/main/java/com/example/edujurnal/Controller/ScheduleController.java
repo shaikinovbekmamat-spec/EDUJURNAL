@@ -94,10 +94,16 @@ public class ScheduleController {
                        LocalDate date, @RequestParam(required = false) Long classId,
                        @RequestParam(defaultValue = "false") boolean onlyMine,
                        Authentication authentication, Model model) {
+        var user = access.currentUser(authentication);
+
+        // Owner не может просматривать расписание
+        if (user.getRole() == Role.OWNER) {
+            throw new org.springframework.security.access.AccessDeniedException("Владелец не имеет доступа к расписанию. Используйте /management для управления школами и директорами.");
+        }
+
         boolean family = Boolean.TRUE.equals(model.getAttribute("family"));
         if (family && model.getAttribute("familyChild") == null) return "schedule/family-empty";
         if (model.getAttribute("school") == null) return "schedule/select-school";
-        var user = access.currentUser(authentication);
         if (!family) access.school(user, schoolId(model));
         var subject = family ? (com.example.edujurnal.entity.User) model.getAttribute("familyChild") : user;
         Long visibleClass = access.visibleClass(subject, classId);

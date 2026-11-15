@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
+    <script src="/js/language.js" defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход - EduJournal</title>
@@ -221,8 +222,8 @@
 <div class="login-container">
 
     <div class="lang-switch">
-        <a href="#" class="active">RU</a> |
-        <a href="#">KG</a>
+        <a th:href="@{/login(lang='ru')}" class="active">RU</a> |
+        <a th:href="@{/login(lang='ky')}">KG</a>
     </div>
 
     <div class="login-header">
